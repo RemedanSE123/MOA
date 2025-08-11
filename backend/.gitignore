@@ -1,0 +1,20 @@
+# Node modules
+node_modules/
+.env/
+
+# Logs
+*.log
+
+# Uploads directory where images/files are stored
+uploads/
+
+# Environment files (such as .env)
+.env
+
+# IDE or editor specific files
+.vscode/
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db
