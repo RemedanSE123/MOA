@@ -3,31 +3,34 @@ import { pool } from "@/lib/db"
 
 export async function GET() {
   try {
-    console.log("[v0] Fetching zone data from database")
+    console.log("🗺️ Fetching zone data from database")
 
     const query = `
       SELECT 
         gid,
-        shape_leng,
-        shape_area,
-        adm2_en,
-        adm2_pcode,
-        adm1_en,
-        adm1_pcode,
-        adm0_en,
-        adm0_pcode,
-        ST_AsGeoJSON(geom) as geojson
+        adm2_en as name,
+        adm2_pcode as code,
+        adm1_en as region_name,
+        adm1_pcode as region_code,
+        ST_AsGeoJSON(geom) as geometry
       FROM zone
       ORDER BY adm2_en
     `
 
     const result = await pool.query(query)
-    console.log("[v0] Zone query completed, rows:", result.rows.length)
+    console.log("🗺️ Zone query completed, rows:", result.rows.length)
 
     const zones = result.rows.map((row) => ({
-      ...row,
-      geojson: JSON.parse(row.geojson),
+      gid: row.gid,
+      name: row.name,
+      code: row.code,
+      region_name: row.region_name,
+      region_code: row.region_code,
+      geometry: JSON.parse(row.geometry), // Parse the GeoJSON geometry
     }))
+
+    console.log("🗺️ Zone data processed successfully:", zones.length, "zones")
+
 
     return NextResponse.json({
       success: true,
@@ -35,7 +38,7 @@ export async function GET() {
       count: zones.length,
     })
   } catch (error) {
-    console.error("[v0] Error fetching zone data:", error)
+    console.error("🗺️ Error fetching zone data:", error)
     return NextResponse.json(
       {
         success: false,

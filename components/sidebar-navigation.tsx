@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -200,7 +199,7 @@ export function SidebarNavigation({
       </div>
 
       {/* Navigation Items */}
-      <ScrollArea className="flex-1 p-2">
+      <ScrollArea className="flex-1 p-2 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent scrollbar-track-sidebar">
         <div className="space-y-1">
           {sidebarItems.map((item) => {
             const isExpanded = expandedItems.includes(item.id)

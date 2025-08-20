@@ -6,7 +6,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const year = searchParams.get("year") || "2020"
 
-    console.log("[v0] Fetching zone weather data for year:", year)
+    console.log(" Fetching zone weather data for year:", year)
 
     const query = `
       SELECT 
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     `
 
     const result = await pool.query(query, [Number.parseInt(year)])
-    console.log("[v0] Zone weather query completed, rows:", result.rows.length)
+    console.log(" Zone weather query completed, rows:", result.rows.length)
 
     return NextResponse.json({
       success: true,
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       count: result.rows.length,
     })
   } catch (error) {
-    console.error("[v0] Error fetching zone weather data:", error)
+    console.error(" Error fetching zone weather data:", error)
     return NextResponse.json(
       {
         success: false,

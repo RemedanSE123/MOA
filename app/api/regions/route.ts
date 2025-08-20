@@ -4,7 +4,7 @@ import { pool } from "@/lib/db"
 export async function GET() {
   try {
     if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME || !process.env.DB_PASS) {
-      console.error("[v0] Missing required database environment variables")
+      console.error(" Missing required database environment variables")
       return NextResponse.json(
         {
           success: false,
@@ -22,7 +22,7 @@ export async function GET() {
       )
     }
 
-    console.log("[v0] Fetching region data...")
+    console.log("Fetching region data...")
 
     // Query to get region data with geometry
     const query = `
@@ -43,7 +43,7 @@ export async function GET() {
       geometry: JSON.parse(row.geometry),
     }))
 
-    console.log("[v0] Region data fetched successfully:", data.length, "regions")
+    console.log("Region data fetched successfully:", data.length, "regions")
 
     return NextResponse.json({
       success: true,
@@ -51,7 +51,7 @@ export async function GET() {
       count: data.length,
     })
   } catch (error) {
-    console.error("[v0] Database error details:", {
+    console.error(" Database error details:", {
       message: error instanceof Error ? error.message : "Unknown error",
       code: (error as any)?.code,
       detail: (error as any)?.detail,

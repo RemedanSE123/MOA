@@ -4,12 +4,11 @@ import { useState, useEffect, useMemo } from "react"
 import { MainLayout, useMapSelection } from "@/components/main-layout"
 import { EthiopiaMap } from "@/components/ethiopia-map"
 import { MapLevelIndicator } from "@/components/map-level-indicator"
-import { AgriculturalVisualization } from "@/components/agricultural-visualization"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -22,7 +21,6 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
-  BarChart3,
   MapIcon,
   Layers,
 } from "lucide-react"
@@ -47,7 +45,7 @@ const colorSchemes = {
   purple: "#9333ea",
 }
 
-function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
+function MapContent({ setWeatherControlsProps }) {
   const { activeMapLevel, activeWeatherDataSource } = useMapSelection()
 
   // Weather Data State
@@ -55,13 +53,7 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
   const [weatherLoading, setWeatherLoading] = useState(true)
   const [weatherError, setWeatherError] = useState<string | null>(null)
 
-  // Agricultural Data State
-  const [agriculturalData, setAgriculturalData] = useState<any>(null)
-  const [agriculturalLoading, setAgriculturalLoading] = useState(false)
-  const [agriculturalError, setAgriculturalError] = useState<string | null>(null)
-
   // Control States
-  const [activeDataLayer, setActiveDataLayer] = useState<"weather" | "agricultural">("weather")
   const [selectedYear, setSelectedYear] = useState("2020")
   const [weatherParameter, setWeatherParameter] = useState<"max_temp" | "min_temp" | "precipitation">("max_temp")
   const [colorScheme, setColorScheme] = useState("red")
@@ -69,12 +61,6 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
   const [customRange, setCustomRange] = useState<{ min: number; max: number } | null>(null)
   const [useCustomRange, setUseCustomRange] = useState(false)
   const [showPrecipitationIcons, setShowPrecipitationIcons] = useState(false)
-
-  // Agricultural Control States
-  const [activeCategory, setActiveCategory] = useState("land-information")
-  const [activeSubcategory, setActiveSubcategory] = useState("soilTypes")
-  const [visualizationType, setVisualizationType] = useState<"choropleth" | "pie" | "bar">("choropleth")
-  const [showLegend, setShowLegend] = useState(true)
 
   // Interactive Control States
   const [searchQuery, setSearchQuery] = useState("")
@@ -103,7 +89,7 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
       const data = await response.json()
       if (data.success) {
         setWeatherData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} weather records for ${activeMapLevel} level`)
+        console.log(` Loaded ${data.data.length} weather records for ${activeMapLevel} level`)
       } else {
         throw new Error(data.error || "Failed to fetch weather data")
       }
@@ -115,38 +101,9 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
     }
   }
 
-  const fetchAgriculturalData = async (category: string, subcategory?: string) => {
-    setAgriculturalLoading(true)
-    setAgriculturalError(null)
-
-    try {
-      const params = new URLSearchParams({ category })
-      if (subcategory) params.append("subcategory", subcategory)
-
-      const response = await fetch(`/api/agricultural-data?${params}`)
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        setAgriculturalData(data.data)
-        console.log(`[v0] Loaded agricultural data for ${category}/${subcategory}`)
-      } else {
-        throw new Error(data.error || "Failed to fetch agricultural data")
-      }
-    } catch (err) {
-      console.error("Error fetching agricultural data:", err)
-      setAgriculturalError(err instanceof Error ? err.message : "Failed to load agricultural data")
-    } finally {
-      setAgriculturalLoading(false)
-    }
-  }
-
   const handleExportData = () => {
-    const dataToExport = activeDataLayer === "weather" ? weatherData : agriculturalData
-    const filename = `ethiopia_${activeDataLayer}_data_${new Date().toISOString().split("T")[0]}`
+    const dataToExport = weatherData
+    const filename = `ethiopia_weather_data_${new Date().toISOString().split("T")[0]}`
 
     if (exportFormat === "csv") {
       const csv = convertToCSV(dataToExport)
@@ -178,7 +135,7 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
   }
 
   const filteredData = useMemo(() => {
-    let data = activeDataLayer === "weather" ? weatherData : agriculturalData
+    let data = weatherData
 
     if (!data) return []
 
@@ -189,19 +146,15 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
     }
 
     if (selectedRegions.length > 0) {
-      data = data.filter((item: any) => selectedRegions.includes(item.adm1_pcode || item.region))
+      data = data.filter((item: any) => selectedRegions.includes(item.adm1_pcode))
     }
 
     return data
-  }, [activeDataLayer, weatherData, agriculturalData, searchQuery, selectedRegions])
+  }, [weatherData, searchQuery, selectedRegions])
 
   useEffect(() => {
-    if (activeDataLayer === "weather") {
-      fetchWeatherData(selectedYear)
-    } else {
-      fetchAgriculturalData(activeCategory, activeSubcategory)
-    }
-  }, [selectedYear, activeMapLevel, activeWeatherDataSource, activeDataLayer, activeCategory, activeSubcategory])
+    fetchWeatherData(selectedYear)
+  }, [selectedYear, activeMapLevel, activeWeatherDataSource])
 
   const dataRange = useMemo(() => {
     if (filteredData.length === 0) return { min: 0, max: 0 }
@@ -265,26 +218,8 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
       loading: weatherLoading,
     }
 
-    const agriculturalControls = {
-      activeCategory,
-      onCategoryChange: setActiveCategory,
-      activeSubcategory,
-      onSubcategoryChange: setActiveSubcategory,
-      visualizationType,
-      onVisualizationTypeChange: setVisualizationType,
-      showLegend,
-      onShowLegendChange: setShowLegend,
-      onRefresh: () => fetchAgriculturalData(activeCategory, activeSubcategory),
-      loading: agriculturalLoading,
-      dataStats: { regionCount: filteredData.length },
-    }
-
-    // Pass controls to parent component for sidebar
     if (typeof setWeatherControlsProps === "function") {
       setWeatherControlsProps(weatherControls)
-    }
-    if (typeof setAgriculturalControlsProps === "function") {
-      setAgriculturalControlsProps(agriculturalControls)
     }
   }, [
     selectedYear,
@@ -296,12 +231,6 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
     showPrecipitationIcons,
     dataRange,
     weatherLoading,
-    activeCategory,
-    activeSubcategory,
-    visualizationType,
-    showLegend,
-    agriculturalLoading,
-    filteredData.length,
   ])
 
   return (
@@ -316,23 +245,11 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
               <Filter className="h-5 w-5" />
               <span>Interactive Controls</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <Badge variant={activeDataLayer === "weather" ? "default" : "outline"}>
-                <Button variant="ghost" size="sm" onClick={() => setActiveDataLayer("weather")} className="h-auto p-1">
-                  Weather Data
-                </Button>
-              </Badge>
-              <Badge variant={activeDataLayer === "agricultural" ? "default" : "outline"}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveDataLayer("agricultural")}
-                  className="h-auto p-1"
-                >
-                  Agricultural Data
-                </Button>
-              </Badge>
-            </div>
+            <Badge variant="default">
+              <Button variant="ghost" size="sm" className="h-auto p-1">
+                Weather Data
+              </Button>
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -382,16 +299,10 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  if (activeDataLayer === "weather") {
-                    fetchWeatherData(selectedYear)
-                  } else {
-                    fetchAgriculturalData(activeCategory, activeSubcategory)
-                  }
-                }}
-                disabled={weatherLoading || agriculturalLoading}
+                onClick={() => fetchWeatherData(selectedYear)}
+                disabled={weatherLoading}
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${weatherLoading || agriculturalLoading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 ${weatherLoading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>
@@ -400,7 +311,7 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
       </Card>
 
       {/* No Weather Data Alert for Woreda Level */}
-      {!activeWeatherDataSource && activeDataLayer === "weather" && (
+      {!activeWeatherDataSource && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -417,7 +328,7 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
             <span>Map View</span>
           </TabsTrigger>
           <TabsTrigger value="charts" className="flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4" />
+            <MapIcon className="h-4 w-4" />
             <span>Charts</span>
           </TabsTrigger>
           <TabsTrigger value="data" className="flex items-center space-x-2">
@@ -431,35 +342,20 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <MapPin className="h-5 w-5" />
-                <span>
-                  {activeDataLayer === "weather" && activeWeatherDataSource
-                    ? `${getParameterTitle()} - ${selectedYear}`
-                    : activeDataLayer === "agricultural"
-                      ? `${activeCategory.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${activeSubcategory}`
-                      : `${activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Administrative Boundaries`}
-                </span>
+                <span>{activeWeatherDataSource ? `${getParameterTitle()} - ${selectedYear}` : `${activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Administrative Boundaries`}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[600px]">
-              {weatherError || agriculturalError ? (
+              {weatherError ? (
                 <div className="text-center py-8">
-                  <p className="text-red-600 mb-4">Error: {weatherError || agriculturalError}</p>
-                  <Button
-                    onClick={() => {
-                      if (activeDataLayer === "weather") {
-                        fetchWeatherData(selectedYear)
-                      } else {
-                        fetchAgriculturalData(activeCategory, activeSubcategory)
-                      }
-                    }}
-                    variant="outline"
-                  >
+                  <p className="text-red-600 mb-4">Error: {weatherError}</p>
+                  <Button onClick={() => fetchWeatherData(selectedYear)} variant="outline">
                     Try Again
                   </Button>
                 </div>
               ) : (
                 <EthiopiaMap
-                  activeLayer={activeDataLayer === "weather" && activeWeatherDataSource ? "weather" : "boundaries"}
+                  activeLayer={activeWeatherDataSource ? "weather" : "boundaries"}
                   activeMapLevel={activeMapLevel}
                   weatherData={filteredData}
                   weatherParameter={weatherParameter}
@@ -474,22 +370,11 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
         </TabsContent>
 
         <TabsContent value="charts">
-          {activeDataLayer === "agricultural" && agriculturalData && (
-            <AgriculturalVisualization
-              data={agriculturalData}
-              category={activeCategory}
-              subcategory={activeSubcategory}
-              visualizationType={visualizationType}
-              showLegend={showLegend}
-            />
-          )}
-          {activeDataLayer === "weather" && (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <p className="text-muted-foreground">Weather data charts will be available in the next update.</p>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">Weather data charts will be available in the next update.</p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="data">
@@ -550,36 +435,20 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
                   {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)}s with Data
                 </div>
               </div>
-              {activeDataLayer === "weather" && (
-                <>
-                  <div className="text-center p-4 bg-orange-50 rounded-lg">
-                    <div className="text-2xl font-bold text-orange-600">
-                      {dataRange.max.toFixed(1)}
-                      {weatherParameter === "precipitation" ? " mm" : "°C"}
-                    </div>
-                    <div className="text-sm text-gray-600">Maximum Value</div>
-                  </div>
-                  <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {dataRange.min.toFixed(1)}
-                      {weatherParameter === "precipitation" ? " mm" : "°C"}
-                    </div>
-                    <div className="text-sm text-gray-600">Minimum Value</div>
-                  </div>
-                </>
-              )}
-              {activeDataLayer === "agricultural" && (
-                <>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{activeCategory.split("-").length}</div>
-                    <div className="text-sm text-gray-600">Data Categories</div>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">2024</div>
-                    <div className="text-sm text-gray-600">Latest Data Year</div>
-                  </div>
-                </>
-              )}
+              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">
+                  {dataRange.max.toFixed(1)}
+                  {weatherParameter === "precipitation" ? " mm" : "°C"}
+                </div>
+                <div className="text-sm text-gray-600">Maximum Value</div>
+              </div>
+              <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {dataRange.min.toFixed(1)}
+                  {weatherParameter === "precipitation" ? " mm" : "°C"}
+                </div>
+                <div className="text-sm text-gray-600">Minimum Value</div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -590,19 +459,14 @@ function MapContent({ setWeatherControlsProps, setAgriculturalControlsProps }) {
 
 export default function EthiopiaTemperatureMap() {
   const [weatherControlsProps, setWeatherControlsProps] = useState<any>(null)
-  const [agriculturalControlsProps, setAgriculturalControlsProps] = useState<any>(null)
 
   return (
     <MainLayout
-      title="Agricultural Data Portal"
+      title="Weather Data Portal"
       subtitle="Ministry of Agriculture - Ethiopia"
       weatherControlsProps={weatherControlsProps}
-      agriculturalControlsProps={agriculturalControlsProps}
     >
-      <MapContent
-        setWeatherControlsProps={setWeatherControlsProps}
-        setAgriculturalControlsProps={setAgriculturalControlsProps}
-      />
+      <MapContent setWeatherControlsProps={setWeatherControlsProps} />
     </MainLayout>
   )
 }

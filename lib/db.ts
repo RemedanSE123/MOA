@@ -13,8 +13,8 @@ const pool = new Pool({
 
 export async function testConnection() {
   try {
-    console.log("[v0] Testing database connection...")
-    console.log("[v0] Connection config:", {
+    console.log(" Testing database connection...")
+    console.log(" Connection config:", {
       host: process.env.DB_HOST || "localhost",
       database: process.env.DB_NAME || "moa_map_db",
       user: process.env.DB_USER || "postgres",
@@ -31,10 +31,10 @@ export async function testConnection() {
     const client = await pool.connect()
     await client.query("SELECT NOW()")
     client.release()
-    console.log("[v0] Database connection successful")
+    console.log(" Database connection successful")
     return { success: true, message: "Database connection successful" }
   } catch (error) {
-    console.error("[v0] Database connection failed:", error)
+    console.error(" Database connection failed:", error)
     return {
       success: false,
       message: error instanceof Error ? error.message : "Unknown connection error",

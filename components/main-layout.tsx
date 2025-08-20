@@ -55,17 +55,17 @@ export function MainLayout({
 
   const handleItemSelect = (itemId: string) => {
     setActiveItem(itemId)
-    console.log("[v0] Selected navigation item:", itemId)
+    console.log(" Selected navigation item:", itemId)
 
     if (itemId === "region-map") {
       setActiveMapLevel("region")
-      console.log("[v0] Switched to region map with r_weather_data")
+      console.log(" Switched to region map with r_weather_data")
     } else if (itemId === "zone-map") {
       setActiveMapLevel("zone")
-      console.log("[v0] Switched to zone map with z_weather_data")
+      console.log(" Switched to zone map with z_weather_data")
     } else if (itemId === "woreda-map") {
       setActiveMapLevel("woreda")
-      console.log("[v0] Switched to woreda map - no weather data available")
+      console.log(" Switched to woreda map - no weather data available")
     }
   }
 

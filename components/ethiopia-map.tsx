@@ -264,11 +264,11 @@ export function EthiopiaMap({
   // Get feature color based on weather data
   const getFeatureColor = useCallback(
     (feature: MapFeature) => {
-      console.log("[v0] Getting color for feature:", feature.name, "code:", feature.code)
-      console.log("[v0] activeLayer:", activeLayer, "parameterKey:", parameterKey)
+      console.log(" Getting color for feature:", feature.name, "code:", feature.code)
+      console.log(" activeLayer:", activeLayer, "parameterKey:", parameterKey)
 
       if (activeLayer !== "weather" || !parameterKey) {
-        console.log("[v0] Returning default color - activeLayer or parameterKey missing")
+        console.log(" Returning default color - activeLayer or parameterKey missing")
         return "#e5e7eb"
       }
 
@@ -277,43 +277,43 @@ export function EthiopiaMap({
       if (activeMapLevel === "region") {
         // For regions, match adm1_pcode with feature.code
         weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
-        console.log("[v0] Looking for region weather data with code:", feature.code)
+        console.log(" Looking for region weather data with code:", feature.code)
       } else if (activeMapLevel === "zone") {
         // For zones, match adm2_pcode with feature.code
         weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
-        console.log("[v0] Looking for zone weather data with code:", feature.code)
+        console.log(" Looking for zone weather data with code:", feature.code)
       }
 
-      console.log("[v0] Found weather info:", weatherInfo)
+      console.log(" Found weather info:", weatherInfo)
 
       if (!weatherInfo) {
-        console.log("[v0] No weather info found, returning default color")
+        console.log(" No weather info found, returning default color")
         return "#e5e7eb"
       }
 
       const rawValue = weatherInfo[parameterKey as keyof WeatherData]
       const value = parseNumericValue(rawValue)
-      console.log("[v0] Raw weather value:", rawValue, "Parsed value:", value, "for parameter:", parameterKey)
+      console.log(" Raw weather value:", rawValue, "Parsed value:", value, "for parameter:", parameterKey)
 
       if (value == null) {
-        console.log("[v0] Invalid value after parsing, returning default color")
+        console.log(" Invalid value after parsing, returning default color")
         return "#e5e7eb"
       }
 
       const { min, max } = minMax
-      console.log("[v0] Min/Max values:", min, max)
+      console.log(" Min/Max values:", min, max)
 
       if (min === max) {
-        console.log("[v0] Min equals max, returning base color")
+        console.log(" Min equals max, returning base color")
         return baseColor
       }
 
       const factor = (value - min) / (max - min)
-      console.log("[v0] Color factor:", factor)
+      console.log(" Color factor:", factor)
 
       const baseRgb = hexToRgb(baseColor)
       if (!baseRgb) {
-        console.log("[v0] Invalid base color, returning default")
+        console.log(" Invalid base color, returning default")
         return "#e5e7eb"
       }
 
@@ -328,7 +328,7 @@ export function EthiopiaMap({
 
       const colorIndex = Math.floor(factor * (colorRanges - 1))
       const finalColor = colors[colorIndex]
-      console.log("[v0] Final color:", finalColor, "for feature:", feature.name)
+      console.log(" Final color:", finalColor, "for feature:", feature.name)
 
       return finalColor
     },
