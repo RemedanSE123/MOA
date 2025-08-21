@@ -257,7 +257,7 @@ export function SidebarNavigation({
       {!isCollapsed && (
         <div className="p-4 border-t border-sidebar-border">
           <div className="text-xs text-gray-500 text-center">
-            © 2024 Kukunet Digital. All rights reserved.
+            © 2025 Kukunet Digital. All rights reserved.
           </div>
         </div>
       )}

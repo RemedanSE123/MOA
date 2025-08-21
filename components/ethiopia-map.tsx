@@ -522,14 +522,12 @@ export function EthiopiaMap({
 
       {showStations && stations.length > 0 && (
         <div className="absolute bottom-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
-          <h4 className="font-semibold text-sm mb-3 flex items-center space-x-2">
-            <MapPin className="h-4 w-4 text-green-600" />
-            <span>Weather Stations</span>
-          </h4>
+        
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-              <span className="text-xs">Active Station</span>
+              
+              <span className="text-xs">Weather Station</span>
             </div>
             <div className="text-xs text-muted-foreground">Total: {stations.length} stations</div>
           </div>
@@ -538,14 +536,12 @@ export function EthiopiaMap({
 
       {showAgricultureLands && agricultureLands.length > 0 && (
         <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
-          <h4 className="font-semibold text-sm mb-3 flex items-center space-x-2">
-            <Wheat className="h-4 w-4 text-orange-600" />
-            <span>Agriculture Lands</span>
-          </h4>
+         
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
-              <span className="text-xs">Agriculture Site</span>
+              <span className="text-xs">Agriculture Lands</span>
+              
             </div>
             <div className="text-xs text-muted-foreground">Total: {agricultureLands.length} sites</div>
           </div>
@@ -561,204 +557,258 @@ export function EthiopiaMap({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <svg
-          ref={svgRef}
-          width="100%"
-          height="100%"
-          viewBox={`0 0 ${mapWidth} ${mapHeight}`}
-          className="absolute inset-0"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: "center center",
+    <svg
+  ref={svgRef}
+  width="100%"
+  height="100%"
+  viewBox={`0 0 ${mapWidth} ${mapHeight}`}
+  className="absolute inset-0"
+  style={{
+    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+    transformOrigin: "center center",
+  }}
+>
+{/* Administrative Boundaries */}
+{overlayLayers.boundaries &&
+  features.map((feature) => {
+    const pathData = geometryToPath(feature.geometry)
+    if (!pathData) return null
+
+    // Find weather info if exists
+    const weatherInfo = weatherData.find((data) =>
+      activeMapLevel === "region"
+        ? data.adm1_pcode === feature.code
+        : activeMapLevel === "zone"
+        ? data.adm2_pcode === feature.code
+        : null // woredas have no weather
+    )
+
+    return (
+      <g key={feature.gid}>
+        {/* Polygon */}
+        <path
+          d={pathData}
+          fill={getFeatureColor(feature)}
+          stroke={getFeatureStroke(feature)}
+          strokeWidth="1"
+          fillOpacity={layerOpacity.boundaries || 0.8}
+          className="transition-all duration-200 cursor-pointer hover:opacity-80"
+          onMouseEnter={() => {
+            setHoveredFeature(feature.code)
+            setHoveredStation(null)
+            setHoveredLand(null)
           }}
-        >
-          {/* Administrative Boundaries */}
-          {overlayLayers.boundaries &&
-            features.map((feature) => {
-              const pathData = geometryToPath(feature.geometry)
-              if (!pathData) return null
+          onMouseLeave={() => setHoveredFeature(null)}
+        />
 
-              const weatherInfo = weatherData.find((data) =>
-                activeMapLevel === "region" ? data.adm1_pcode === feature.code : data.adm2_pcode === feature.code,
-              )
+        {/* Precipitation Icon */}
+        {showPrecipitationIcons &&
+          weatherParameter === "precipitation" &&
+          weatherInfo &&
+          (() => {
+            const iconSize = getPrecipitationIconSize(feature)
+            if (iconSize === 0) return null
 
-              return (
-                <g key={feature.gid}>
-                  <path
-                    d={pathData}
-                    fill={getFeatureColor(feature)}
-                    stroke={getFeatureStroke(feature)}
-                    strokeWidth="1"
-                    fillOpacity={layerOpacity.boundaries || 0.8}
-                    className="transition-all duration-200 cursor-pointer hover:opacity-80"
-                    onMouseEnter={() => setHoveredFeature(feature.code)}
-                    onMouseLeave={() => setHoveredFeature(null)}
-                  />
+            const bounds = feature.geometry?.coordinates?.[0]
+            if (!bounds) return null
 
-                  {showPrecipitationIcons &&
-                    weatherParameter === "precipitation" &&
-                    weatherInfo &&
-                    (() => {
-                      const iconSize = getPrecipitationIconSize(feature)
-                      if (iconSize === 0) return null
+            let centerLng = 0,
+              centerLat = 0
+            bounds.forEach(([lng, lat]: [number, number]) => {
+              centerLng += lng
+              centerLat += lat
+            })
+            centerLng /= bounds.length
+            centerLat /= bounds.length
 
-                      // Calculate center of the feature for icon placement
-                      const bounds = feature.geometry?.coordinates?.[0]
-                      if (!bounds) return null
+            const centerPoint = projectPoint(centerLng, centerLat)
 
-                      let centerLng = 0,
-                        centerLat = 0
-                      bounds.forEach(([lng, lat]: [number, number]) => {
-                        centerLng += lng
-                        centerLat += lat
-                      })
-                      centerLng /= bounds.length
-                      centerLat /= bounds.length
+            return (
+              <g
+                transform={`translate(${centerPoint.x - iconSize / 2}, ${
+                  centerPoint.y - iconSize / 2
+                })`}
+              >
+                <CloudRain
+                  className="text-blue-600"
+                  style={{ width: iconSize, height: iconSize }}
+                />
+              </g>
+            )
+          })()}
 
-                      const centerPoint = projectPoint(centerLng, centerLat)
+        {/* Tooltip */}
+        {hoveredFeature === feature.code &&
+          (() => {
+            const bounds = feature.geometry?.coordinates?.[0]
+            if (!bounds) return null
 
-                      return (
-                        <g transform={`translate(${centerPoint.x - iconSize / 2}, ${centerPoint.y - iconSize / 2})`}>
-                          <CloudRain className="text-blue-600" style={{ width: iconSize, height: iconSize }} />
-                        </g>
-                      )
-                    })()}
+            // Compute center of polygon
+            let centerLng = 0,
+              centerLat = 0
+            bounds.forEach(([lng, lat]: [number, number]) => {
+              centerLng += lng
+              centerLat += lat
+            })
+            centerLng /= bounds.length
+            centerLat /= bounds.length
 
-                  {/* Weather Data Tooltip */}
-                  {hoveredFeature === feature.code && weatherInfo && activeLayer === "weather" && (
-                    <foreignObject x="10" y="10" width="200" height="100">
-                      <div className="bg-white p-2 rounded shadow-lg text-xs border">
-                        <div className="font-semibold">{weatherInfo.adm1_en}</div>
-                        <div>Max Temp: {weatherInfo.avg_annual_max_temperature_c}°C</div>
-                        <div>Min Temp: {weatherInfo.avg_annual_min_temperature_c}°C</div>
-                        <div>Precipitation: {weatherInfo.avg_annual_precipitation_mm_day}mm</div>
+            const centerPoint = projectPoint(centerLng, centerLat)
+
+            // Determine tooltip name
+            let featureName = ""
+            if (activeMapLevel === "region") featureName = weatherInfo?.adm1_en || feature.name
+            else if (activeMapLevel === "zone") featureName = weatherInfo?.adm2_en || feature.name
+            else if (activeMapLevel === "woreda") featureName = feature.name
+
+            return (
+              <foreignObject
+              x="10"
+               y="10"
+                width="200"
+                 height="100"
+                  style={{ pointerEvents: "none", zIndex: 5000 }}
+              >
+                <div className="bg-white p-2 rounded shadow-lg text-xs border">
+                  <div className="font-semibold">{featureName}</div>
+
+                  {/* Only show weather if not woreda and weatherInfo exists */}
+                  {activeMapLevel !== "woreda" && weatherInfo && (
+                    <>
+                      <div>
+                        Max Temp: {weatherInfo.avg_annual_max_temperature_c}
                       </div>
-                    </foreignObject>
-                  )}
-                </g>
-              )
-            })}
-
-          {showStations &&
-            stations.map((station) => {
-              const coords = station.geometry?.coordinates
-              if (!coords || coords.length !== 2) return null
-
-              const point = projectPoint(coords[0], coords[1])
-              const isHovered = hoveredStation === station.id
-
-              return (
-                <g key={station.id}>
-                  {/* Station marker */}
-                  <circle
-                    cx={point.x}
-                    cy={point.y}
-                    r={isHovered ? 8 : 6}
-                    fill="#16a34a"
-                    stroke="#ffffff"
-                    strokeWidth="2"
-                    className="cursor-pointer transition-all duration-200 hover:fill-green-700"
-                    onMouseEnter={() => setHoveredStation(station.id)}
-                    onMouseLeave={() => setHoveredStation(null)}
-                  />
-
-                  {/* Station icon */}
-                  <g transform={`translate(${point.x - 3}, ${point.y - 3})`} className="pointer-events-none">
-                    <MapPin
-                      className="h-2 w-2 text-white"
-                      style={{
-                        transform: "scale(0.8)",
-                        transformOrigin: "center",
-                      }}
-                    />
-                  </g>
-
-                  {/* Station tooltip */}
-                  {isHovered && (
-                    <foreignObject x={point.x + 15} y={point.y - 40} width="180" height="80">
-                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <MapPin className="h-3 w-3 text-green-600" />
-                          <span className="font-semibold text-gray-800">Weather Station #{station.id}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-medium">Coordinates:</span>
-                          </div>
-                          <div className="text-xs text-gray-600 ml-2">
-                            Lat: {coords[1].toFixed(4)}°<br />
-                            Lng: {coords[0].toFixed(4)}°
-                          </div>
-                        </div>
+                      <div>
+                        Min Temp: {weatherInfo.avg_annual_min_temperature_c}
                       </div>
-                    </foreignObject>
-                  )}
-                </g>
-              )
-            })}
-
-          {showAgricultureLands &&
-            agricultureLands.map((land) => {
-              const coords = land.geometry?.coordinates
-              if (!coords || coords.length !== 2) return null
-
-              const point = projectPoint(coords[0], coords[1])
-              const isHovered = hoveredLand === land.id
-
-              return (
-                <g key={land.id}>
-                  {/* Agriculture land marker */}
-                  <circle
-                    cx={point.x}
-                    cy={point.y}
-                    r={isHovered ? 10 : 8}
-                    fill="#ea580c"
-                    stroke="#ffffff"
-                    strokeWidth="2"
-                    className="cursor-pointer transition-all duration-200 hover:fill-orange-700"
-                    onMouseEnter={() => setHoveredLand(land.id)}
-                    onMouseLeave={() => setHoveredLand(null)}
-                    onClick={() => onLandSelect?.(land)}
-                  />
-
-                  {/* Agriculture icon */}
-                  <g transform={`translate(${point.x - 4}, ${point.y - 4})`} className="pointer-events-none">
-                    <Wheat
-                      className="h-3 w-3 text-white"
-                      style={{
-                        transform: "scale(0.9)",
-                        transformOrigin: "center",
-                      }}
-                    />
-                  </g>
-
-                  {/* Agriculture land tooltip */}
-                  {isHovered && (
-                    <foreignObject x={point.x + 15} y={point.y - 60} width="200" height="120">
-                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Wheat className="h-3 w-3 text-orange-600" />
-                          <span className="font-semibold text-gray-800">{land.name}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-medium">Region:</span> {land.region}
-                          </div>
-                          <div>
-                            <span className="font-medium">Crops:</span> {land.major_crops}
-                          </div>
-                          <div>
-                            <span className="font-medium">Size:</span> {land.land_size}
-                          </div>
-                          <div className="text-xs text-blue-600 mt-2">Click for more details</div>
-                        </div>
+                      <div>
+                        Precipitation: {weatherInfo.avg_annual_precipitation_mm_day}
                       </div>
-                    </foreignObject>
+                    </>
                   )}
-                </g>
-              )
-            })}
-        </svg>
+                </div>
+              </foreignObject>
+            )
+          })()}
+      </g>
+    )
+  })}
+
+
+  {showStations &&
+    stations.map((station) => {
+      const coords = station.geometry?.coordinates
+      if (!coords || coords.length !== 2) return null
+
+      const point = projectPoint(coords[0], coords[1])
+      const isHovered = hoveredStation === station.id
+
+      return (
+        <g key={station.id}>
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={isHovered ? 8 : 6}
+            fill="#16a34a"
+            stroke="#ffffff"
+            strokeWidth="2"
+            className="cursor-pointer transition-all duration-200 hover:fill-green-700"
+            onMouseEnter={() => {
+              setHoveredStation(station.id);
+              setHoveredFeature(null);
+              setHoveredLand(null);
+            }}
+            onMouseLeave={() => setHoveredStation(null)}
+          />
+
+          {isHovered && (
+            <foreignObject
+              x={point.x + 15}
+              y={point.y - 60}
+              width="200"
+              height="120"
+              style={{ pointerEvents: "none", zIndex: 5000 }}
+            >
+              <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <MapPin className="h-3 w-3 text-green-600" />
+                  <span className="font-semibold text-gray-800">Weather Station #{station.id}</span>
+                </div>
+                <div className="space-y-1">
+                  <div>
+                    <span className="font-medium">Coordinates:</span>
+                  </div>
+                  <div className="text-xs text-gray-600 ml-2">
+                    Lat: {coords[1].toFixed(4)}°<br />
+                    Lng: {coords[0].toFixed(4)}°
+                  </div>
+                </div>
+              </div>
+            </foreignObject>
+          )}
+        </g>
+      )
+    })}
+
+  {showAgricultureLands &&
+    agricultureLands.map((land) => {
+      const coords = land.geometry?.coordinates
+      if (!coords || coords.length !== 2) return null
+
+      const point = projectPoint(coords[0], coords[1])
+      const isHovered = hoveredLand === land.id
+
+      return (
+        <g key={land.id}>
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={isHovered ? 10 : 8}
+            fill="#ea580c"
+            stroke="#ffffff"
+            strokeWidth="2"
+            className="cursor-pointer transition-all duration-200 hover:fill-orange-700"
+            onMouseEnter={() => {
+              setHoveredLand(land.id);
+              setHoveredFeature(null);
+              setHoveredStation(null);
+            }}
+            onMouseLeave={() => setHoveredLand(null)}
+            onClick={() => onLandSelect?.(land)}
+          />
+
+          {isHovered && (
+            <foreignObject
+              x={point.x + 15}
+              y={point.y - 60}
+              width="200"
+              height="120"
+              style={{ pointerEvents: "none", zIndex: 5000 }}
+            >
+              <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Wheat className="h-3 w-3 text-orange-600" />
+                  <span className="font-semibold text-gray-800">{land.name}</span>
+                </div>
+                <div className="space-y-1">
+                  <div>
+                    <span className="font-medium">Region:</span> {land.region}
+                  </div>
+                  <div>
+                    <span className="font-medium">Crops:</span> {land.major_crops}
+                  </div>
+                  <div>
+                    <span className="font-medium">Size:</span> {land.land_size}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-2">Click for more details</div>
+                </div>
+              </div>
+            </foreignObject>
+          )}
+        </g>
+      )
+    })}
+</svg>
       </div>
     </div>
   )

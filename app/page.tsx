@@ -298,7 +298,7 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
                   Weather Data
                 </Label>
               </div>
-              <Switch id="weather-toggle" checked={showWeatherData} onCheckedChange={setShowWeatherData} />
+              <Switch id="weather-toggle" checked={showWeatherData} onCheckedChange={setShowWeatherData}  />
             </div>
 
             {/* Stations Toggle */}

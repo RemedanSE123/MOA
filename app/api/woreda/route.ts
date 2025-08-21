@@ -17,7 +17,7 @@ export async function GET() {
         ST_AsGeoJSON(geom) as geometry
       FROM woreda
       ORDER BY adm3_en
-      LIMIT 1000
+      LIMIT 1100
     `
 
     const result = await pool.query(query)
