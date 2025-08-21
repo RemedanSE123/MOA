@@ -23,7 +23,7 @@ export function MapLevelIndicator() {
         return {
           icon: <Layers className="h-4 w-4" />,
           title: "Zone Level",
-          description: "Administrative zones within regions",
+          description: "Administrative zones within Ethiopia",
           weatherSource: "Zone weather data available",
           color: "bg-gradient-to-r from-blue-100 to-sky-100 text-blue-800 border-blue-200",
           iconColor: "text-blue-600",
@@ -32,7 +32,7 @@ export function MapLevelIndicator() {
         return {
           icon: <Map className="h-4 w-4" />,
           title: "Woreda Level",
-          description: "Administrative woredas within zones",
+          description: "Administrative woredas within Ethiopia",
           weatherSource: "No weather data available",
           color: "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
           iconColor: "text-orange-600",

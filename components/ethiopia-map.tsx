@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ZoomIn, ZoomOut, RotateCcw, MapPin } from "lucide-react"
+import { ZoomIn, ZoomOut, RotateCcw, MapPin, CloudRain, Wheat } from "lucide-react"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -45,6 +45,26 @@ interface Station {
   latitude: number
   shape_leng?: number
   shape_area?: number
+  geometry?: {
+    type: string
+    coordinates: [number, number]
+  }
+}
+
+interface AgricultureLand {
+  id: number
+  name: string
+  region: string
+  major_crops: string
+  land_size: string
+  soil_type: string
+  suitability: string
+  challenges: string
+  image: string
+  geometry: {
+    type: string
+    coordinates: [number, number]
+  }
 }
 
 interface EthiopiaMapProps {
@@ -65,6 +85,10 @@ interface EthiopiaMapProps {
   showStations?: boolean
   baseColor: string
   colorRanges: number
+  showPrecipitationIcons?: boolean
+  agricultureLands?: AgricultureLand[]
+  showAgricultureLands?: boolean
+  onLandSelect?: (land: AgricultureLand) => void
 }
 
 export function EthiopiaMap({
@@ -85,6 +109,10 @@ export function EthiopiaMap({
   showStations = false,
   baseColor,
   colorRanges,
+  showPrecipitationIcons = false,
+  agricultureLands = [],
+  showAgricultureLands = false,
+  onLandSelect,
 }: EthiopiaMapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -97,6 +125,7 @@ export function EthiopiaMap({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [hoveredFeature, setHoveredFeature] = useState<string | null>(null)
   const [hoveredStation, setHoveredStation] = useState<number | null>(null)
+  const [hoveredLand, setHoveredLand] = useState<number | null>(null)
 
   // Ethiopia bounding box (approximate)
   const bounds = {
@@ -272,6 +301,10 @@ export function EthiopiaMap({
         return "#e5e7eb"
       }
 
+      if (weatherParameter === "precipitation" && showPrecipitationIcons) {
+        return "#f3f4f6" // Light gray background when showing icons
+      }
+
       let weatherInfo: WeatherData | undefined
 
       if (activeMapLevel === "region") {
@@ -332,7 +365,40 @@ export function EthiopiaMap({
 
       return finalColor
     },
-    [activeLayer, weatherData, parameterKey, minMax, baseColor, colorRanges, activeMapLevel, parseNumericValue],
+    [
+      activeLayer,
+      weatherData,
+      parameterKey,
+      minMax,
+      baseColor,
+      colorRanges,
+      activeMapLevel,
+      parseNumericValue,
+      weatherParameter,
+      showPrecipitationIcons,
+    ],
+  )
+
+  const getPrecipitationIconSize = useCallback(
+    (feature: MapFeature) => {
+      if (weatherParameter !== "precipitation" || !showPrecipitationIcons) return 0
+
+      const weatherInfo = weatherData.find((data) =>
+        activeMapLevel === "region" ? data.adm1_pcode === feature.code : data.adm2_pcode === feature.code,
+      )
+
+      if (!weatherInfo) return 0
+
+      const value = parseNumericValue(weatherInfo.avg_annual_precipitation_mm_day)
+      if (value == null) return 0
+
+      const { min, max } = minMax
+      if (min === max) return 12
+
+      const factor = (value - min) / (max - min)
+      return 8 + factor * 16 // Size between 8 and 24
+    },
+    [weatherData, weatherParameter, showPrecipitationIcons, activeMapLevel, parseNumericValue, minMax],
   )
 
   const getFeatureStroke = (feature: MapFeature) => {
@@ -413,7 +479,7 @@ export function EthiopiaMap({
         </Button>
       </div>
 
-      {activeLayer === "weather" && legendColors.length > 0 && minMax.min !== minMax.max && (
+      {activeLayer === "weather" && legendColors.length > 0 && minMax.min !== minMax.max && !showPrecipitationIcons && (
         <div className="absolute bottom-4 right-4 z-10 bg-white rounded shadow p-2 text-sm">
           <div className="font-medium mb-1">{title}</div>
           {legendColors.map((color, i) => {
@@ -431,6 +497,29 @@ export function EthiopiaMap({
         </div>
       )}
 
+      {showPrecipitationIcons && weatherParameter === "precipitation" && (
+        <div className="absolute bottom-4 right-4 z-10 bg-white rounded shadow p-2 text-sm">
+          <div className="font-medium mb-1 flex items-center space-x-2">
+            <CloudRain className="h-4 w-4 text-blue-600" />
+            <span>Precipitation (mm/day)</span>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <CloudRain className="h-3 w-3 text-blue-600" />
+              <span>Low</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <CloudRain className="h-4 w-4 text-blue-600" />
+              <span>Medium</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <CloudRain className="h-6 w-6 text-blue-600" />
+              <span>High</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showStations && stations.length > 0 && (
         <div className="absolute bottom-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
           <h4 className="font-semibold text-sm mb-3 flex items-center space-x-2">
@@ -443,6 +532,22 @@ export function EthiopiaMap({
               <span className="text-xs">Active Station</span>
             </div>
             <div className="text-xs text-muted-foreground">Total: {stations.length} stations</div>
+          </div>
+        </div>
+      )}
+
+      {showAgricultureLands && agricultureLands.length > 0 && (
+        <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
+          <h4 className="font-semibold text-sm mb-3 flex items-center space-x-2">
+            <Wheat className="h-4 w-4 text-orange-600" />
+            <span>Agriculture Lands</span>
+          </h4>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+              <span className="text-xs">Agriculture Site</span>
+            </div>
+            <div className="text-xs text-muted-foreground">Total: {agricultureLands.length} sites</div>
           </div>
         </div>
       )}
@@ -475,7 +580,7 @@ export function EthiopiaMap({
 
               const weatherInfo = weatherData.find((data) =>
                 activeMapLevel === "region" ? data.adm1_pcode === feature.code : data.adm2_pcode === feature.code,
-              ) // Fixed weather info lookup for tooltips
+              )
 
               return (
                 <g key={feature.gid}>
@@ -489,6 +594,36 @@ export function EthiopiaMap({
                     onMouseEnter={() => setHoveredFeature(feature.code)}
                     onMouseLeave={() => setHoveredFeature(null)}
                   />
+
+                  {showPrecipitationIcons &&
+                    weatherParameter === "precipitation" &&
+                    weatherInfo &&
+                    (() => {
+                      const iconSize = getPrecipitationIconSize(feature)
+                      if (iconSize === 0) return null
+
+                      // Calculate center of the feature for icon placement
+                      const bounds = feature.geometry?.coordinates?.[0]
+                      if (!bounds) return null
+
+                      let centerLng = 0,
+                        centerLat = 0
+                      bounds.forEach(([lng, lat]: [number, number]) => {
+                        centerLng += lng
+                        centerLat += lat
+                      })
+                      centerLng /= bounds.length
+                      centerLat /= bounds.length
+
+                      const centerPoint = projectPoint(centerLng, centerLat)
+
+                      return (
+                        <g transform={`translate(${centerPoint.x - iconSize / 2}, ${centerPoint.y - iconSize / 2})`}>
+                          <CloudRain className="text-blue-600" style={{ width: iconSize, height: iconSize }} />
+                        </g>
+                      )
+                    })()}
+
                   {/* Weather Data Tooltip */}
                   {hoveredFeature === feature.code && weatherInfo && activeLayer === "weather" && (
                     <foreignObject x="10" y="10" width="200" height="100">
@@ -506,11 +641,14 @@ export function EthiopiaMap({
 
           {showStations &&
             stations.map((station) => {
-              const point = projectPoint(station.longitude, station.latitude)
-              const isHovered = hoveredStation === station.gid
+              const coords = station.geometry?.coordinates
+              if (!coords || coords.length !== 2) return null
+
+              const point = projectPoint(coords[0], coords[1])
+              const isHovered = hoveredStation === station.id
 
               return (
-                <g key={station.gid}>
+                <g key={station.id}>
                   {/* Station marker */}
                   <circle
                     cx={point.x}
@@ -520,7 +658,7 @@ export function EthiopiaMap({
                     stroke="#ffffff"
                     strokeWidth="2"
                     className="cursor-pointer transition-all duration-200 hover:fill-green-700"
-                    onMouseEnter={() => setHoveredStation(station.gid)}
+                    onMouseEnter={() => setHoveredStation(station.id)}
                     onMouseLeave={() => setHoveredStation(null)}
                   />
 
@@ -541,22 +679,78 @@ export function EthiopiaMap({
                       <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
                         <div className="flex items-center space-x-2 mb-2">
                           <MapPin className="h-3 w-3 text-green-600" />
-                          <span className="font-semibold text-gray-800">Weather Station</span>
+                          <span className="font-semibold text-gray-800">Weather Station #{station.id}</span>
                         </div>
                         <div className="space-y-1">
-                          <div>
-                            <span className="font-medium">Region:</span> {station.adm1_en}
-                          </div>
-                          <div>
-                            <span className="font-medium">Code:</span> {station.adm1_pcode}
-                          </div>
                           <div>
                             <span className="font-medium">Coordinates:</span>
                           </div>
                           <div className="text-xs text-gray-600 ml-2">
-                            Lat: {station.latitude.toFixed(4)}°<br />
-                            Lng: {station.longitude.toFixed(4)}°
+                            Lat: {coords[1].toFixed(4)}°<br />
+                            Lng: {coords[0].toFixed(4)}°
                           </div>
+                        </div>
+                      </div>
+                    </foreignObject>
+                  )}
+                </g>
+              )
+            })}
+
+          {showAgricultureLands &&
+            agricultureLands.map((land) => {
+              const coords = land.geometry?.coordinates
+              if (!coords || coords.length !== 2) return null
+
+              const point = projectPoint(coords[0], coords[1])
+              const isHovered = hoveredLand === land.id
+
+              return (
+                <g key={land.id}>
+                  {/* Agriculture land marker */}
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isHovered ? 10 : 8}
+                    fill="#ea580c"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    className="cursor-pointer transition-all duration-200 hover:fill-orange-700"
+                    onMouseEnter={() => setHoveredLand(land.id)}
+                    onMouseLeave={() => setHoveredLand(null)}
+                    onClick={() => onLandSelect?.(land)}
+                  />
+
+                  {/* Agriculture icon */}
+                  <g transform={`translate(${point.x - 4}, ${point.y - 4})`} className="pointer-events-none">
+                    <Wheat
+                      className="h-3 w-3 text-white"
+                      style={{
+                        transform: "scale(0.9)",
+                        transformOrigin: "center",
+                      }}
+                    />
+                  </g>
+
+                  {/* Agriculture land tooltip */}
+                  {isHovered && (
+                    <foreignObject x={point.x + 15} y={point.y - 60} width="200" height="120">
+                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Wheat className="h-3 w-3 text-orange-600" />
+                          <span className="font-semibold text-gray-800">{land.name}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="font-medium">Region:</span> {land.region}
+                          </div>
+                          <div>
+                            <span className="font-medium">Crops:</span> {land.major_crops}
+                          </div>
+                          <div>
+                            <span className="font-medium">Size:</span> {land.land_size}
+                          </div>
+                          <div className="text-xs text-blue-600 mt-2">Click for more details</div>
                         </div>
                       </div>
                     </foreignObject>

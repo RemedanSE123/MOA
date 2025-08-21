@@ -8,19 +8,7 @@ import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import {
-  Thermometer,
-  Droplets,
-  Palette,
-  Settings,
-  Calendar,
-  BarChart3,
-  Cloud,
-  CloudRain,
-  CloudSnow,
-} from "lucide-react"
+import { Thermometer, Palette, Calendar } from "lucide-react"
 
 interface WeatherControlsProps {
   selectedYear: string
@@ -50,14 +38,6 @@ const colorSchemes = [
   { id: "purple", name: "Purple (Contrast)", color: "#9333ea", description: "High contrast" },
 ]
 
-const precipitationIcons = [
-  { range: [0, 5], icon: Cloud, label: "Very Low", color: "#f3f4f6" },
-  { range: [5, 15], icon: Cloud, label: "Low", color: "#e5e7eb" },
-  { range: [15, 30], icon: CloudRain, label: "Moderate", color: "#3b82f6" },
-  { range: [30, 50], icon: CloudRain, label: "High", color: "#1d4ed8" },
-  { range: [50, 100], icon: CloudSnow, label: "Very High", color: "#1e3a8a" },
-]
-
 export function WeatherControls({
   selectedYear,
   onYearChange,
@@ -69,10 +49,6 @@ export function WeatherControls({
   onColorRangesChange,
   customRange,
   onCustomRangeChange,
-  useCustomRange,
-  onUseCustomRangeChange,
-  showPrecipitationIcons,
-  onShowPrecipitationIconsChange,
   dataRange,
   onRefresh,
   loading,
@@ -97,12 +73,6 @@ export function WeatherControls({
     <div className="space-y-4">
       {/* Basic Controls */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center space-x-2">
-            <Settings className="h-4 w-4" />
-            <span>Weather Data Controls</span>
-          </CardTitle>
-        </CardHeader>
         <CardContent className="space-y-4">
           {/* Year Selection */}
           <div className="flex items-center space-x-3">
@@ -187,111 +157,17 @@ export function WeatherControls({
               value={[colorRanges]}
               onValueChange={(value) => onColorRangesChange(value[0])}
               min={3}
-              max={10}
+              max={20}
               step={1}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>3 ranges</span>
-              <span>10 ranges</span>
+              <span>20 ranges</span>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Range Selection */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4" />
-            <span>Range Selection</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Use Custom Range</Label>
-            <Switch checked={useCustomRange} onCheckedChange={onUseCustomRangeChange} />
-          </div>
-
-          {useCustomRange && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Min Value</Label>
-                  <Input
-                    type="number"
-                    value={tempCustomRange.min}
-                    onChange={(e) =>
-                      setTempCustomRange((prev) => ({ ...prev, min: Number.parseFloat(e.target.value) }))
-                    }
-                    className="h-8"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Max Value</Label>
-                  <Input
-                    type="number"
-                    value={tempCustomRange.max}
-                    onChange={(e) =>
-                      setTempCustomRange((prev) => ({ ...prev, max: Number.parseFloat(e.target.value) }))
-                    }
-                    className="h-8"
-                  />
-                </div>
-              </div>
-              <div className="flex space-x-2">
-                <Button onClick={handleCustomRangeApply} size="sm" className="flex-1">
-                  Apply Range
-                </Button>
-                <Button onClick={handleCustomRangeReset} size="sm" variant="outline" className="flex-1 bg-transparent">
-                  Reset
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="text-xs text-muted-foreground">
-            Data Range: {dataRange.min.toFixed(1)} - {dataRange.max.toFixed(1)}
-            {weatherParameter === "precipitation" ? " mm" : "°C"}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Precipitation Icons */}
-      {weatherParameter === "precipitation" && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center space-x-2">
-              <Droplets className="h-4 w-4" />
-              <span>Precipitation Visualization</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Show Icons Instead of Colors</Label>
-              <Switch checked={showPrecipitationIcons} onCheckedChange={onShowPrecipitationIconsChange} />
-            </div>
-
-            {showPrecipitationIcons && (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Icon Legend</Label>
-                {precipitationIcons.map((item, index) => {
-                  const IconComponent = item.icon
-                  return (
-                    <div key={index} className="flex items-center space-x-3 text-xs">
-                      <IconComponent className="h-4 w-4" style={{ color: item.color }} />
-                      <span className="font-medium">{item.label}</span>
-                      <span className="text-muted-foreground">
-                        {item.range[0]} - {item.range[1]} mm
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

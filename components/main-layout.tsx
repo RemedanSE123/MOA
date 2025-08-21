@@ -8,7 +8,7 @@ import { TopNavigation } from "./top-navigation"
 
 interface MapSelectionContextType {
   activeMapLevel: "region" | "zone" | "woreda"
-  setActiveMapLevel: (level: "region" | "zone" | "woreda") => void
+  setActiveMapLevel: React.Dispatch<React.SetStateAction<"region" | "zone" | "woreda">>
   activeWeatherDataSource: "r_weather_data" | "z_weather_data" | null
 }
 
@@ -69,10 +69,10 @@ export function MainLayout({
     }
   }
 
-  const mapSelectionValue = {
+  const mapSelectionValue: MapSelectionContextType = {
     activeMapLevel,
     setActiveMapLevel,
-    activeWeatherDataSource: getWeatherDataSource(activeMapLevel),
+    activeWeatherDataSource: getWeatherDataSource(activeMapLevel) as "r_weather_data" | "z_weather_data" | null,
   }
 
   return (
