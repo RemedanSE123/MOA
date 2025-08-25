@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ZoomIn, ZoomOut, RotateCcw, MapPin, CloudRain, Wheat } from "lucide-react"
+import { ZoomIn, ZoomOut, RotateCcw, MapPin, CloudRain, Wheat, Sprout, BarChart3, Bug } from "lucide-react"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -89,6 +89,15 @@ interface EthiopiaMapProps {
   agricultureLands?: AgricultureLand[]
   showAgricultureLands?: boolean
   onLandSelect?: (land: AgricultureLand) => void
+  landData?: any[]
+  landLayerEnabled?: boolean
+  cropProductionData?: any[]
+  cropProductionLayerEnabled?: boolean
+  pestData?: any[]
+  pestDataLayerEnabled?: boolean
+  landParameter?: string
+  cropParameter?: string
+  pestParameter?: string
 }
 
 export function EthiopiaMap({
@@ -113,6 +122,15 @@ export function EthiopiaMap({
   agricultureLands = [],
   showAgricultureLands = false,
   onLandSelect,
+  landData = [],
+  landLayerEnabled = false,
+  cropProductionData = [],
+  cropProductionLayerEnabled = false,
+  pestData = [],
+  pestDataLayerEnabled = false,
+  landParameter = "total_agri_land",
+  cropParameter = "teff_production_mt",
+  pestParameter = "pest_incidence",
 }: EthiopiaMapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -281,21 +299,111 @@ export function EthiopiaMap({
     return null
   }, [])
 
+  const getActiveDataLayer = useCallback(() => {
+    if (landLayerEnabled && landData.length > 0) {
+      return { data: landData, parameter: landParameter, type: "land" }
+    }
+    if (cropProductionLayerEnabled && cropProductionData.length > 0) {
+      return { data: cropProductionData, parameter: cropParameter, type: "crop" }
+    }
+    if (pestDataLayerEnabled && pestData.length > 0) {
+      return { data: pestData, parameter: pestParameter, type: "pest" }
+    }
+    return null
+  }, [
+    landLayerEnabled,
+    landData,
+    landParameter,
+    cropProductionLayerEnabled,
+    cropProductionData,
+    cropParameter,
+    pestDataLayerEnabled,
+    pestData,
+    pestParameter,
+  ])
+
+  const activeDataLayer = getActiveDataLayer()
+
   const minMax = useMemo(() => {
-    if (!parameterKey || weatherData.length === 0) return { min: 0, max: 0 }
-    const values = weatherData
-      .map((d) => parseNumericValue(d[parameterKey as keyof WeatherData]))
-      .filter((v) => v != null) as number[]
-    if (values.length === 0) return { min: 0, max: 0 }
-    return { min: Math.min(...values), max: Math.max(...values) }
-  }, [weatherData, parameterKey, parseNumericValue])
+    if (activeLayer === "weather" && parameterKey && weatherData.length > 0) {
+      const values = weatherData
+        .map((d) => parseNumericValue(d[parameterKey as keyof WeatherData]))
+        .filter((v) => v != null) as number[]
+      if (values.length === 0) return { min: 0, max: 0 }
+      return { min: Math.min(...values), max: Math.max(...values) }
+    }
+
+    if (activeDataLayer && activeDataLayer.data.length > 0) {
+      const values = activeDataLayer.data
+        .map((d) => parseNumericValue(d[activeDataLayer.parameter]))
+        .filter((v) => v != null) as number[]
+      if (values.length === 0) return { min: 0, max: 0 }
+      return { min: Math.min(...values), max: Math.max(...values) }
+    }
+
+    return { min: 0, max: 0 }
+  }, [weatherData, parameterKey, parseNumericValue, activeLayer, activeDataLayer])
 
   // Get feature color based on weather data
   const getFeatureColor = useCallback(
     (feature: MapFeature) => {
       console.log(" Getting color for feature:", feature.name, "code:", feature.code)
-      console.log(" activeLayer:", activeLayer, "parameterKey:", parameterKey)
 
+      // Handle agricultural data layers
+      if (activeDataLayer) {
+        console.log(" Using agricultural data layer:", activeDataLayer.type)
+
+        const dataInfo = activeDataLayer.data.find((data) => data.adm1_pcode === feature.code)
+        console.log(" Found agricultural data:", dataInfo)
+
+        if (!dataInfo) {
+          console.log(" No agricultural data found, returning default color")
+          return "#e5e7eb"
+        }
+
+        const rawValue = dataInfo[activeDataLayer.parameter]
+        const value = parseNumericValue(rawValue)
+        console.log(" Raw agricultural value:", rawValue, "Parsed value:", value)
+
+        if (value == null) {
+          console.log(" Invalid agricultural value, returning default color")
+          return "#e5e7eb"
+        }
+
+        const { min, max } = minMax
+        console.log(" Agricultural Min/Max values:", min, max)
+
+        if (min === max) {
+          console.log(" Min equals max, returning base color")
+          return baseColor
+        }
+
+        const factor = (value - min) / (max - min)
+        console.log(" Agricultural color factor:", factor)
+
+        const baseRgb = hexToRgb(baseColor)
+        if (!baseRgb) {
+          console.log(" Invalid base color, returning default")
+          return "#e5e7eb"
+        }
+
+        const colors: string[] = []
+        for (let i = 0; i < colorRanges; i++) {
+          const intensity = i / (colorRanges - 1)
+          const r = Math.round(255 - (255 - baseRgb.r) * intensity)
+          const g = Math.round(255 - (255 - baseRgb.g) * intensity)
+          const b = Math.round(255 - (255 - baseRgb.b) * intensity)
+          colors.push(`rgb(${r},${g},${b})`)
+        }
+
+        const colorIndex = Math.floor(factor * (colorRanges - 1))
+        const finalColor = colors[colorIndex]
+        console.log(" Final agricultural color:", finalColor, "for feature:", feature.name)
+
+        return finalColor
+      }
+
+      // Handle weather data (existing logic)
       if (activeLayer !== "weather" || !parameterKey) {
         console.log(" Returning default color - activeLayer or parameterKey missing")
         return "#e5e7eb"
@@ -376,6 +484,7 @@ export function EthiopiaMap({
       parseNumericValue,
       weatherParameter,
       showPrecipitationIcons,
+      activeDataLayer,
     ],
   )
 
@@ -434,12 +543,40 @@ export function EthiopiaMap({
     )
   }
 
-  const title =
-    weatherParameter === "max_temp"
+  const getLegendTitle = () => {
+    if (activeDataLayer) {
+      switch (activeDataLayer.type) {
+        case "land":
+          return landParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+        case "crop":
+          return cropParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+        case "pest":
+          return pestParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+      }
+    }
+
+    return weatherParameter === "max_temp"
       ? "Max Temperature °C"
       : weatherParameter === "min_temp"
         ? "Min Temperature °C"
         : "Precipitation mm"
+  }
+
+  const getLegendIcon = () => {
+    if (activeDataLayer) {
+      switch (activeDataLayer.type) {
+        case "land":
+          return <Sprout className="h-4 w-4 text-green-600" />
+        case "crop":
+          return <BarChart3 className="h-4 w-4 text-blue-600" />
+        case "pest":
+          return <Bug className="h-4 w-4 text-red-600" />
+      }
+    }
+    return null
+  }
+
+  const title = getLegendTitle()
   const { min, max } = minMax
   const step = (max - min) / colorRanges
   const legendColors: string[] = []
@@ -479,54 +616,34 @@ export function EthiopiaMap({
         </Button>
       </div>
 
-      {activeLayer === "weather" && legendColors.length > 0 && minMax.min !== minMax.max && !showPrecipitationIcons && (
-        <div className="absolute bottom-4 right-4 z-10 bg-white rounded shadow p-2 text-sm">
-          <div className="font-medium mb-1">{title}</div>
-          {legendColors.map((color, i) => {
-            const low = min + i * step
-            const high = i === colorRanges - 1 ? max : min + (i + 1) * step
-            return (
-              <div key={i} className="flex items-center space-x-2">
-                <div style={{ width: "20px", height: "20px", backgroundColor: color }} />
-                <span>
-                  {low.toFixed(1)} - {high.toFixed(1)}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {showPrecipitationIcons && weatherParameter === "precipitation" && (
-        <div className="absolute bottom-4 right-4 z-10 bg-white rounded shadow p-2 text-sm">
-          <div className="font-medium mb-1 flex items-center space-x-2">
-            <CloudRain className="h-4 w-4 text-blue-600" />
-            <span>Precipitation (mm/day)</span>
+      {((activeLayer === "weather" && !showPrecipitationIcons) || activeDataLayer) &&
+        legendColors.length > 0 &&
+        minMax.min !== minMax.max && (
+          <div className="absolute bottom-4 right-4 z-10 bg-white rounded shadow p-2 text-sm">
+            <div className="font-medium mb-1 flex items-center space-x-2">
+              {getLegendIcon()}
+              <span>{title}</span>
+            </div>
+            {legendColors.map((color, i) => {
+              const low = min + i * step
+              const high = i === colorRanges - 1 ? max : min + (i + 1) * step
+              return (
+                <div key={i} className="flex items-center space-x-2">
+                  <div style={{ width: "20px", height: "20px", backgroundColor: color }} />
+                  <span>
+                    {low.toFixed(1)} - {high.toFixed(1)}
+                  </span>
+                </div>
+              )
+            })}
           </div>
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <CloudRain className="h-3 w-3 text-blue-600" />
-              <span>Low</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <CloudRain className="h-4 w-4 text-blue-600" />
-              <span>Medium</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <CloudRain className="h-6 w-6 text-blue-600" />
-              <span>High</span>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
 
       {showStations && stations.length > 0 && (
         <div className="absolute bottom-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
-        
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-              
               <span className="text-xs">Weather Station</span>
             </div>
             <div className="text-xs text-muted-foreground">Total: {stations.length} stations</div>
@@ -536,12 +653,10 @@ export function EthiopiaMap({
 
       {showAgricultureLands && agricultureLands.length > 0 && (
         <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
-         
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
               <span className="text-xs">Agriculture Lands</span>
-              
             </div>
             <div className="text-xs text-muted-foreground">Total: {agricultureLands.length} sites</div>
           </div>
@@ -557,258 +672,266 @@ export function EthiopiaMap({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-    <svg
-  ref={svgRef}
-  width="100%"
-  height="100%"
-  viewBox={`0 0 ${mapWidth} ${mapHeight}`}
-  className="absolute inset-0"
-  style={{
-    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-    transformOrigin: "center center",
-  }}
->
-{/* Administrative Boundaries */}
-{overlayLayers.boundaries &&
-  features.map((feature) => {
-    const pathData = geometryToPath(feature.geometry)
-    if (!pathData) return null
-
-    // Find weather info if exists
-    const weatherInfo = weatherData.find((data) =>
-      activeMapLevel === "region"
-        ? data.adm1_pcode === feature.code
-        : activeMapLevel === "zone"
-        ? data.adm2_pcode === feature.code
-        : null // woredas have no weather
-    )
-
-    return (
-      <g key={feature.gid}>
-        {/* Polygon */}
-        <path
-          d={pathData}
-          fill={getFeatureColor(feature)}
-          stroke={getFeatureStroke(feature)}
-          strokeWidth="1"
-          fillOpacity={layerOpacity.boundaries || 0.8}
-          className="transition-all duration-200 cursor-pointer hover:opacity-80"
-          onMouseEnter={() => {
-            setHoveredFeature(feature.code)
-            setHoveredStation(null)
-            setHoveredLand(null)
+        <svg
+          ref={svgRef}
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${mapWidth} ${mapHeight}`}
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "center center",
           }}
-          onMouseLeave={() => setHoveredFeature(null)}
-        />
+        >
+          {/* Administrative Boundaries */}
+          {overlayLayers.boundaries &&
+            features.map((feature) => {
+              const pathData = geometryToPath(feature.geometry)
+              if (!pathData) return null
 
-        {/* Precipitation Icon */}
-        {showPrecipitationIcons &&
-          weatherParameter === "precipitation" &&
-          weatherInfo &&
-          (() => {
-            const iconSize = getPrecipitationIconSize(feature)
-            if (iconSize === 0) return null
+              // Find weather info if exists
+              const weatherInfo = weatherData.find(
+                (data) =>
+                  activeMapLevel === "region"
+                    ? data.adm1_pcode === feature.code
+                    : activeMapLevel === "zone"
+                      ? data.adm2_pcode === feature.code
+                      : null, // woredas have no weather
+              )
 
-            const bounds = feature.geometry?.coordinates?.[0]
-            if (!bounds) return null
+              // Find agricultural data if exists
+              const agriculturalInfo = activeDataLayer?.data.find((data) => data.adm1_pcode === feature.code)
 
-            let centerLng = 0,
-              centerLat = 0
-            bounds.forEach(([lng, lat]: [number, number]) => {
-              centerLng += lng
-              centerLat += lat
-            })
-            centerLng /= bounds.length
-            centerLat /= bounds.length
+              return (
+                <g key={feature.gid}>
+                  {/* Polygon */}
+                  <path
+                    d={pathData}
+                    fill={getFeatureColor(feature)}
+                    stroke={getFeatureStroke(feature)}
+                    strokeWidth="1"
+                    fillOpacity={layerOpacity.boundaries || 0.8}
+                    className="transition-all duration-200 cursor-pointer hover:opacity-80"
+                    onMouseEnter={() => {
+                      setHoveredFeature(feature.code)
+                      setHoveredStation(null)
+                      setHoveredLand(null)
+                    }}
+                    onMouseLeave={() => setHoveredFeature(null)}
+                  />
 
-            const centerPoint = projectPoint(centerLng, centerLat)
+                  {/* Precipitation Icon */}
+                  {showPrecipitationIcons &&
+                    weatherParameter === "precipitation" &&
+                    weatherInfo &&
+                    (() => {
+                      const iconSize = getPrecipitationIconSize(feature)
+                      if (iconSize === 0) return null
 
-            return (
-              <g
-                transform={`translate(${centerPoint.x - iconSize / 2}, ${
-                  centerPoint.y - iconSize / 2
-                })`}
-              >
-                <CloudRain
-                  className="text-blue-600"
-                  style={{ width: iconSize, height: iconSize }}
-                />
-              </g>
-            )
-          })()}
+                      const bounds = feature.geometry?.coordinates?.[0]
+                      if (!bounds) return null
 
-        {/* Tooltip */}
-        {hoveredFeature === feature.code &&
-          (() => {
-            const bounds = feature.geometry?.coordinates?.[0]
-            if (!bounds) return null
+                      let centerLng = 0,
+                        centerLat = 0
+                      bounds.forEach(([lng, lat]: [number, number]) => {
+                        centerLng += lng
+                        centerLat += lat
+                      })
+                      centerLng /= bounds.length
+                      centerLat /= bounds.length
 
-            // Compute center of polygon
-            let centerLng = 0,
-              centerLat = 0
-            bounds.forEach(([lng, lat]: [number, number]) => {
-              centerLng += lng
-              centerLat += lat
-            })
-            centerLng /= bounds.length
-            centerLat /= bounds.length
+                      const centerPoint = projectPoint(centerLng, centerLat)
 
-            const centerPoint = projectPoint(centerLng, centerLat)
+                      return (
+                        <g transform={`translate(${centerPoint.x - iconSize / 2}, ${centerPoint.y - iconSize / 2})`}>
+                          <CloudRain className="text-blue-600" style={{ width: iconSize, height: iconSize }} />
+                        </g>
+                      )
+                    })()}
 
-            // Determine tooltip name
-            let featureName = ""
-            if (activeMapLevel === "region") featureName = weatherInfo?.adm1_en || feature.name
-            else if (activeMapLevel === "zone") featureName = weatherInfo?.adm2_en || feature.name
-            else if (activeMapLevel === "woreda") featureName = feature.name
+                  {/* Updated Tooltip */}
+                  {hoveredFeature === feature.code &&
+                    (() => {
+                      const bounds = feature.geometry?.coordinates?.[0]
+                      if (!bounds) return null
 
-            return (
-              <foreignObject
-              x="10"
-               y="10"
-                width="200"
-                 height="100"
-                  style={{ pointerEvents: "none", zIndex: 5000 }}
-              >
-                <div className="bg-white p-2 rounded shadow-lg text-xs border">
-                  <div className="font-semibold">{featureName}</div>
+                      // Compute center of polygon
+                      let centerLng = 0,
+                        centerLat = 0
+                      bounds.forEach(([lng, lat]: [number, number]) => {
+                        centerLng += lng
+                        centerLat += lat
+                      })
+                      centerLng /= bounds.length
+                      centerLat /= bounds.length
 
-                  {/* Only show weather if not woreda and weatherInfo exists */}
-                  {activeMapLevel !== "woreda" && weatherInfo && (
-                    <>
-                      <div>
-                        Max Temp: {weatherInfo.avg_annual_max_temperature_c}
+                      const centerPoint = projectPoint(centerLng, centerLat)
+
+                      // Determine tooltip name
+                      let featureName = ""
+                      if (activeMapLevel === "region") featureName = weatherInfo?.adm1_en || feature.name
+                      else if (activeMapLevel === "zone") featureName = weatherInfo?.adm1_en || feature.name
+                      else if (activeMapLevel === "woreda") featureName = feature.name
+
+                      return (
+                        <foreignObject
+                          x="10"
+                          y="10"
+                          width="250"
+                          height="150"
+                          style={{ pointerEvents: "none", zIndex: 5000 }}
+                        >
+                          <div className="bg-white p-2 rounded shadow-lg text-xs border">
+                            <div className="font-semibold">{featureName}</div>
+
+                            {/* Show agricultural data if available */}
+                            {agriculturalInfo && activeDataLayer && (
+                              <div className="mt-2 space-y-1">
+                                <div className="flex items-center space-x-1">
+                                  {getLegendIcon()}
+                                  <span className="font-medium text-gray-700">
+                                    {activeDataLayer.type.charAt(0).toUpperCase() + activeDataLayer.type.slice(1)} Data:
+                                  </span>
+                                </div>
+                                <div className="ml-4">
+                                  {activeDataLayer.parameter
+                                    .replace(/_/g, " ")
+                                    .replace(/\b\w/g, (l) => l.toUpperCase())}
+                                  : {agriculturalInfo[activeDataLayer.parameter]}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Only show weather if not woreda and weatherInfo exists */}
+                            {activeMapLevel !== "woreda" && weatherInfo && !activeDataLayer && (
+                              <>
+                                <div>Max Temp: {weatherInfo.avg_annual_max_temperature_c}</div>
+                                <div>Min Temp: {weatherInfo.avg_annual_min_temperature_c}</div>
+                                <div>Precipitation: {weatherInfo.avg_annual_precipitation_mm_day}</div>
+                              </>
+                            )}
+                          </div>
+                        </foreignObject>
+                      )
+                    })()}
+                </g>
+              )
+            })}
+
+          {showStations &&
+            stations.map((station) => {
+              const coords = station.geometry?.coordinates
+              if (!coords || coords.length !== 2) return null
+
+              const point = projectPoint(coords[0], coords[1])
+              const isHovered = hoveredStation === station.gid
+
+              return (
+                <g key={station.gid}>
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isHovered ? 8 : 6}
+                    fill="#16a34a"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    className="cursor-pointer transition-all duration-200 hover:fill-green-700"
+                    onMouseEnter={() => {
+                      setHoveredStation(station.gid)
+                      setHoveredFeature(null)
+                      setHoveredLand(null)
+                    }}
+                    onMouseLeave={() => setHoveredStation(null)}
+                  />
+
+                  {isHovered && (
+                    <foreignObject
+                      x={point.x + 15}
+                      y={point.y - 60}
+                      width="200"
+                      height="120"
+                      style={{ pointerEvents: "none", zIndex: 5000 }}
+                    >
+                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <MapPin className="h-3 w-3 text-green-600" />
+                          <span className="font-semibold text-gray-800">Weather Station #{station.gid}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="font-medium">Coordinates:</span>
+                          </div>
+                          <div className="text-xs text-gray-600 ml-2">
+                            Lat: {coords[1].toFixed(4)}°<br />
+                            Lng: {coords[0].toFixed(4)}°
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        Min Temp: {weatherInfo.avg_annual_min_temperature_c}
-                      </div>
-                      <div>
-                        Precipitation: {weatherInfo.avg_annual_precipitation_mm_day}
-                      </div>
-                    </>
+                    </foreignObject>
                   )}
-                </div>
-              </foreignObject>
-            )
-          })()}
-      </g>
-    )
-  })}
+                </g>
+              )
+            })}
 
+          {showAgricultureLands &&
+            agricultureLands.map((land) => {
+              const coords = land.geometry?.coordinates
+              if (!coords || coords.length !== 2) return null
 
-  {showStations &&
-    stations.map((station) => {
-      const coords = station.geometry?.coordinates
-      if (!coords || coords.length !== 2) return null
+              const point = projectPoint(coords[0], coords[1])
+              const isHovered = hoveredLand === land.id
 
-      const point = projectPoint(coords[0], coords[1])
-      const isHovered = hoveredStation === station.id
+              return (
+                <g key={land.id}>
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isHovered ? 10 : 8}
+                    fill="#ea580c"
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    className="cursor-pointer transition-all duration-200 hover:fill-orange-700"
+                    onMouseEnter={() => {
+                      setHoveredLand(land.id)
+                      setHoveredFeature(null)
+                      setHoveredStation(null)
+                    }}
+                    onMouseLeave={() => setHoveredLand(null)}
+                    onClick={() => onLandSelect?.(land)}
+                  />
 
-      return (
-        <g key={station.id}>
-          <circle
-            cx={point.x}
-            cy={point.y}
-            r={isHovered ? 8 : 6}
-            fill="#16a34a"
-            stroke="#ffffff"
-            strokeWidth="2"
-            className="cursor-pointer transition-all duration-200 hover:fill-green-700"
-            onMouseEnter={() => {
-              setHoveredStation(station.id);
-              setHoveredFeature(null);
-              setHoveredLand(null);
-            }}
-            onMouseLeave={() => setHoveredStation(null)}
-          />
-
-          {isHovered && (
-            <foreignObject
-              x={point.x + 15}
-              y={point.y - 60}
-              width="200"
-              height="120"
-              style={{ pointerEvents: "none", zIndex: 5000 }}
-            >
-              <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
-                <div className="flex items-center space-x-2 mb-2">
-                  <MapPin className="h-3 w-3 text-green-600" />
-                  <span className="font-semibold text-gray-800">Weather Station #{station.id}</span>
-                </div>
-                <div className="space-y-1">
-                  <div>
-                    <span className="font-medium">Coordinates:</span>
-                  </div>
-                  <div className="text-xs text-gray-600 ml-2">
-                    Lat: {coords[1].toFixed(4)}°<br />
-                    Lng: {coords[0].toFixed(4)}°
-                  </div>
-                </div>
-              </div>
-            </foreignObject>
-          )}
-        </g>
-      )
-    })}
-
-  {showAgricultureLands &&
-    agricultureLands.map((land) => {
-      const coords = land.geometry?.coordinates
-      if (!coords || coords.length !== 2) return null
-
-      const point = projectPoint(coords[0], coords[1])
-      const isHovered = hoveredLand === land.id
-
-      return (
-        <g key={land.id}>
-          <circle
-            cx={point.x}
-            cy={point.y}
-            r={isHovered ? 10 : 8}
-            fill="#ea580c"
-            stroke="#ffffff"
-            strokeWidth="2"
-            className="cursor-pointer transition-all duration-200 hover:fill-orange-700"
-            onMouseEnter={() => {
-              setHoveredLand(land.id);
-              setHoveredFeature(null);
-              setHoveredStation(null);
-            }}
-            onMouseLeave={() => setHoveredLand(null)}
-            onClick={() => onLandSelect?.(land)}
-          />
-
-          {isHovered && (
-            <foreignObject
-              x={point.x + 15}
-              y={point.y - 60}
-              width="200"
-              height="120"
-              style={{ pointerEvents: "none", zIndex: 5000 }}
-            >
-              <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Wheat className="h-3 w-3 text-orange-600" />
-                  <span className="font-semibold text-gray-800">{land.name}</span>
-                </div>
-                <div className="space-y-1">
-                  <div>
-                    <span className="font-medium">Region:</span> {land.region}
-                  </div>
-                  <div>
-                    <span className="font-medium">Crops:</span> {land.major_crops}
-                  </div>
-                  <div>
-                    <span className="font-medium">Size:</span> {land.land_size}
-                  </div>
-                  <div className="text-xs text-blue-600 mt-2">Click for more details</div>
-                </div>
-              </div>
-            </foreignObject>
-          )}
-        </g>
-      )
-    })}
-</svg>
+                  {isHovered && (
+                    <foreignObject
+                      x={point.x + 15}
+                      y={point.y - 60}
+                      width="200"
+                      height="120"
+                      style={{ pointerEvents: "none", zIndex: 5000 }}
+                    >
+                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Wheat className="h-3 w-3 text-orange-600" />
+                          <span className="font-semibold text-gray-800">{land.name}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="font-medium">Region:</span> {land.region}
+                          </div>
+                          <div>
+                            <span className="font-medium">Crops:</span> {land.major_crops}
+                          </div>
+                          <div>
+                            <span className="font-medium">Size:</span> {land.land_size}
+                          </div>
+                          <div className="text-xs text-blue-600 mt-2">Click for more details</div>
+                        </div>
+                      </div>
+                    </foreignObject>
+                  )}
+                </g>
+              )
+            })}
+        </svg>
       </div>
     </div>
   )

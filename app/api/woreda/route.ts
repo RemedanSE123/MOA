@@ -1,8 +1,27 @@
 import { NextResponse } from "next/server"
-import { pool } from "@/lib/db"
+import pkg from "pg"
+const { Pool } = pkg
+
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASS,
+  port: Number(process.env.DB_PORT) || 5432,
+})
 
 export async function GET() {
   try {
+    if (!process.env.DB_USER || !process.env.DB_HOST || !process.env.DB_NAME || !process.env.DB_PASS) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Database not configured",
+          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT in your .env.local",
+        },
+        { status: 500 },
+      )
+    }
     console.log("🗺️ Fetching woreda data from database")
 
     const query = `

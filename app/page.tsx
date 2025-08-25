@@ -10,7 +10,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Thermometer, MapPin, AlertTriangle, MapIcon, Layers, CloudRain, Radio, Wheat } from "lucide-react"
+import {
+  Thermometer,
+  MapPin,
+  AlertTriangle,
+  MapIcon,
+  Layers,
+  CloudRain,
+  Radio,
+  Wheat,
+  Sprout,
+  BarChart3,
+  Bug,
+} from "lucide-react"
 
 interface WeatherData {
   id: number
@@ -61,7 +73,10 @@ const colorSchemes = {
   purple: "#9333ea",
 }
 
-function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (props: any) => void }) {
+function MapContent({
+  setWeatherControlsProps,
+  setLayerControlsProps,
+}: { setWeatherControlsProps: (props: any) => void; setLayerControlsProps: (props: any) => void }) {
   const { activeMapLevel, activeWeatherDataSource } = useMapSelection()
 
   // Weather Data State
@@ -78,6 +93,24 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
   const [agricultureLands, setAgricultureLands] = useState<AgricultureLand[]>([])
   const [agricultureLoading, setAgricultureLoading] = useState(false)
   const [selectedLand, setSelectedLand] = useState<AgricultureLand | null>(null)
+
+  // New Layer States
+  const [landLayerEnabled, setLandLayerEnabled] = useState(false)
+  const [cropProductionLayerEnabled, setCropProductionLayerEnabled] = useState(false)
+  const [pestDataLayerEnabled, setPestDataLayerEnabled] = useState(false)
+
+  // New Data States
+  const [landData, setLandData] = useState<any[]>([])
+  const [cropProductionData, setCropProductionData] = useState<any[]>([])
+  const [pestData, setPestData] = useState<any[]>([])
+  const [landLoading, setLandLoading] = useState(false)
+  const [cropProductionLoading, setCropProductionLoading] = useState(false)
+  const [pestLoading, setPestLoading] = useState(false)
+
+  // New Parameter States
+  const [landParameter, setLandParameter] = useState("total_agri_land")
+  const [cropParameter, setCropParameter] = useState("teff_production_mt")
+  const [pestParameter, setPestParameter] = useState("pest_incidence")
 
   // Control States
   const [selectedYear, setSelectedYear] = useState("2020")
@@ -175,6 +208,80 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
     }
   }
 
+  const fetchLandData = async (year: string) => {
+    if (!landLayerEnabled || activeMapLevel !== "region") {
+      setLandData([])
+      return
+    }
+
+    setLandLoading(true)
+    try {
+      const response = await fetch(`/api/land?year=${year}`)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      const data = await response.json()
+      if (data.success) {
+        setLandData(data.data)
+        console.log(`[v0] Loaded ${data.data.length} land records`)
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching land data:", err)
+    } finally {
+      setLandLoading(false)
+    }
+  }
+
+  const fetchCropProductionData = async (year: string) => {
+    if (!cropProductionLayerEnabled || activeMapLevel !== "region") {
+      setCropProductionData([])
+      return
+    }
+
+    setCropProductionLoading(true)
+    try {
+      const response = await fetch(`/api/cropproduction?year=${year}`)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      const data = await response.json()
+      if (data.success) {
+        setCropProductionData(data.data)
+        console.log(`[v0] Loaded ${data.data.length} crop production records`)
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching crop production data:", err)
+    } finally {
+      setCropProductionLoading(false)
+    }
+  }
+
+  const fetchPestData = async (year: string) => {
+    if (!pestDataLayerEnabled || activeMapLevel !== "region") {
+      setPestData([])
+      return
+    }
+
+    setPestLoading(true)
+    try {
+      const response = await fetch(`/api/pestdata?year=${year}`)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      const data = await response.json()
+      if (data.success) {
+        setPestData(data.data)
+        console.log(`[v0] Loaded ${data.data.length} pest data records for ${year}`)
+        if (data.data.length > 0) {
+          const totalIncidence = data.data.reduce(
+            (sum: number, item: any) => sum + (Number.parseFloat(item.pest_incidence) || 0),
+            0,
+          )
+          const avgIncidence = totalIncidence / data.data.length
+          console.log(`[v0] Average pest incidence: ${avgIncidence.toFixed(2)}%`)
+        }
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching pest data:", err)
+    } finally {
+      setPestLoading(false)
+    }
+  }
+
   const filteredData = useMemo(() => {
     let data = weatherData
 
@@ -208,6 +315,18 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
   useEffect(() => {
     fetchAgricultureLands()
   }, [showAgricultureLands])
+
+  useEffect(() => {
+    fetchLandData(selectedYear)
+  }, [selectedYear, landLayerEnabled, activeMapLevel])
+
+  useEffect(() => {
+    fetchCropProductionData(selectedYear)
+  }, [selectedYear, cropProductionLayerEnabled, activeMapLevel])
+
+  useEffect(() => {
+    fetchPestData(selectedYear)
+  }, [selectedYear, pestDataLayerEnabled, activeMapLevel])
 
   const dataRange = useMemo(() => {
     if (filteredData.length === 0) return { min: 0, max: 0 }
@@ -274,49 +393,211 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
     weatherLoading,
   ])
 
+  useEffect(() => {
+    const layerControls = {
+      landLayerEnabled,
+      onLandLayerToggle: setLandLayerEnabled, // Fixed prop name from onLandLayerChange to onLandLayerToggle
+      cropProductionLayerEnabled,
+      onCropProductionLayerToggle: setCropProductionLayerEnabled, // Fixed prop name from onCropProductionLayerChange to onCropProductionLayerToggle
+      pestDataLayerEnabled,
+      onPestDataLayerToggle: setPestDataLayerEnabled, // Fixed prop name from onPestDataLayerChange to onPestDataLayerToggle
+      selectedYear,
+      onYearChange: setSelectedYear,
+      landParameter,
+      onLandParameterChange: setLandParameter,
+      cropParameter,
+      onCropParameterChange: setCropParameter,
+      pestParameter,
+      onPestParameterChange: setPestParameter,
+      colorScheme,
+      onColorSchemeChange: setColorScheme,
+      onRefresh: () => {
+        if (landLayerEnabled) fetchLandData(selectedYear)
+        if (cropProductionLayerEnabled) fetchCropProductionData(selectedYear)
+        if (pestDataLayerEnabled) fetchPestData(selectedYear)
+        if (showWeatherData) fetchWeatherData(selectedYear)
+      },
+      loading: landLoading || cropProductionLoading || pestLoading, // Combined loading states
+    }
+
+    if (typeof setLayerControlsProps === "function") {
+      setLayerControlsProps(layerControls)
+    }
+  }, [
+    landLayerEnabled,
+    cropProductionLayerEnabled,
+    pestDataLayerEnabled,
+    landParameter,
+    cropParameter,
+    pestParameter,
+    selectedYear,
+    colorScheme,
+    landLoading,
+    cropProductionLoading,
+    pestLoading,
+    showWeatherData,
+  ])
+
   const [currentPage, setCurrentPage] = useState(0)
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-4 space-y-4 pr-6">
       {/* Map Level Indicator */}
       <MapLevelIndicator />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Layers className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center space-x-2 text-base">
+            <Layers className="h-4 w-4" />
             <span>Map Layers</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Weather Data Toggle */}
-            <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center justify-between p-3 border-2 rounded-xl bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-300 transition-all duration-200">
               <div className="flex items-center space-x-2">
-                <Thermometer className="h-4 w-4 text-blue-600" />
-                <Label htmlFor="weather-toggle" className="font-medium">
+                <div className="p-1.5 bg-blue-100 rounded-lg">
+                  <Thermometer className="h-4 w-4 text-blue-600" />
+                </div>
+                <Label htmlFor="weather-toggle" className="font-semibold text-sm text-blue-900 cursor-pointer">
                   Weather Data
                 </Label>
               </div>
-              <Switch id="weather-toggle" checked={showWeatherData} onCheckedChange={setShowWeatherData}  />
+              <Switch
+                id="weather-toggle"
+                checked={showWeatherData}
+                onCheckedChange={setShowWeatherData}
+                className="data-[state=checked]:bg-blue-600"
+              />
+            </div>
+
+            {/* Land Data Toggle */}
+            <div
+              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 ${
+                activeMapLevel === "region"
+                  ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-300"
+                  : "bg-gray-50 border-gray-200 opacity-60"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <div className={`p-1.5 rounded-lg ${activeMapLevel === "region" ? "bg-green-100" : "bg-gray-100"}`}>
+                  <Sprout className={`h-4 w-4 ${activeMapLevel === "region" ? "text-green-600" : "text-gray-400"}`} />
+                </div>
+                <div>
+                  <Label
+                    htmlFor="land-toggle"
+                    className={`font-semibold text-sm cursor-pointer ${
+                      activeMapLevel === "region" ? "text-green-900" : "text-gray-500"
+                    }`}
+                  >
+                    Land Data
+                  </Label>
+                  {activeMapLevel !== "region" && <div className="text-xs text-gray-400">Region level only</div>}
+                </div>
+              </div>
+              <Switch
+                id="land-toggle"
+                checked={landLayerEnabled && activeMapLevel === "region"}
+                onCheckedChange={setLandLayerEnabled}
+                disabled={activeMapLevel !== "region"}
+                className="data-[state=checked]:bg-green-600"
+              />
+            </div>
+
+            {/* Crop Production Toggle */}
+            <div
+              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 ${
+                activeMapLevel === "region"
+                  ? "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 hover:border-amber-300"
+                  : "bg-gray-50 border-gray-200 opacity-60"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <div className={`p-1.5 rounded-lg ${activeMapLevel === "region" ? "bg-amber-100" : "bg-gray-100"}`}>
+                  <BarChart3
+                    className={`h-4 w-4 ${activeMapLevel === "region" ? "text-amber-600" : "text-gray-400"}`}
+                  />
+                </div>
+                <div>
+                  <Label
+                    htmlFor="crop-toggle"
+                    className={`font-semibold text-sm cursor-pointer ${
+                      activeMapLevel === "region" ? "text-amber-900" : "text-gray-500"
+                    }`}
+                  >
+                    Crop Production
+                  </Label>
+                  {activeMapLevel !== "region" && <div className="text-xs text-gray-400">Region level only</div>}
+                </div>
+              </div>
+              <Switch
+                id="crop-toggle"
+                checked={cropProductionLayerEnabled && activeMapLevel === "region"}
+                onCheckedChange={setCropProductionLayerEnabled}
+                disabled={activeMapLevel !== "region"}
+                className="data-[state=checked]:bg-amber-600"
+              />
+            </div>
+
+            {/* Pest Data Toggle */}
+            <div
+              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 ${
+                activeMapLevel === "region"
+                  ? "bg-gradient-to-r from-red-50 to-pink-50 border-red-200 hover:border-red-300"
+                  : "bg-gray-50 border-gray-200 opacity-60"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <div className={`p-1.5 rounded-lg ${activeMapLevel === "region" ? "bg-red-100" : "bg-gray-100"}`}>
+                  <Bug className={`h-4 w-4 ${activeMapLevel === "region" ? "text-red-600" : "text-gray-400"}`} />
+                </div>
+                <div>
+                  <Label
+                    htmlFor="pest-toggle"
+                    className={`font-semibold text-sm cursor-pointer ${
+                      activeMapLevel === "region" ? "text-red-900" : "text-gray-500"
+                    }`}
+                  >
+                    Pest Data
+                  </Label>
+                  {activeMapLevel !== "region" && <div className="text-xs text-gray-400">Region level only</div>}
+                </div>
+              </div>
+              <Switch
+                id="pest-toggle"
+                checked={pestDataLayerEnabled && activeMapLevel === "region"}
+                onCheckedChange={setPestDataLayerEnabled}
+                disabled={activeMapLevel !== "region"}
+                className="data-[state=checked]:bg-red-600"
+              />
             </div>
 
             {/* Stations Toggle */}
-            <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center justify-between p-3 border-2 rounded-xl bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-200 hover:border-teal-300 transition-all duration-200">
               <div className="flex items-center space-x-2">
-                <Radio className="h-4 w-4 text-green-600" />
-                <Label htmlFor="stations-toggle" className="font-medium">
+                <div className="p-1.5 bg-teal-100 rounded-lg">
+                  <Radio className="h-4 w-4 text-teal-600" />
+                </div>
+                <Label htmlFor="stations-toggle" className="font-semibold text-sm text-teal-900 cursor-pointer">
                   Weather Stations
                 </Label>
               </div>
-              <Switch id="stations-toggle" checked={showStations} onCheckedChange={setShowStations} />
+              <Switch
+                id="stations-toggle"
+                checked={showStations}
+                onCheckedChange={setShowStations}
+                className="data-[state=checked]:bg-teal-600"
+              />
             </div>
 
             {/* Agriculture Lands Toggle */}
-            <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center justify-between p-3 border-2 rounded-xl bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200 hover:border-orange-300 transition-all duration-200">
               <div className="flex items-center space-x-2">
-                <Wheat className="h-4 w-4 text-orange-600" />
-                <Label htmlFor="agriculture-toggle" className="font-medium">
+                <div className="p-1.5 bg-orange-100 rounded-lg">
+                  <Wheat className="h-4 w-4 text-orange-600" />
+                </div>
+                <Label htmlFor="agriculture-toggle" className="font-semibold text-sm text-orange-900 cursor-pointer">
                   Agriculture Lands
                 </Label>
               </div>
@@ -324,15 +605,39 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
                 id="agriculture-toggle"
                 checked={showAgricultureLands}
                 onCheckedChange={setShowAgricultureLands}
+                className="data-[state=checked]:bg-orange-600"
               />
             </div>
           </div>
 
+          {/* Agricultural Data Restriction Alert */}
+          {activeMapLevel !== "region" && (landLayerEnabled || cropProductionLayerEnabled || pestDataLayerEnabled) && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm text-amber-800">
+                Agricultural data layers (Land, Crop Production, Pest Data) are only available for Region level maps.
+                Please select Region Map to view this data.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {pestDataLayerEnabled && (
+            <div className="flex items-center justify-between p-2 border rounded-lg bg-red-50 border-red-200">
+              <div className="flex items-center space-x-1.5">
+                <AlertTriangle className="h-3 w-3 text-red-600" />
+                <div>
+                  <Label className="font-medium text-red-700 text-xs">Pest Management Alert System Active</Label>
+                  <div className="text-xs text-red-600">Monitoring agricultural pest threats across regions</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showWeatherData && weatherParameter === "precipitation" && (
-            <div className="flex items-center justify-between p-3 border rounded-lg bg-blue-50">
-              <div className="flex items-center space-x-2">
-                <CloudRain className="h-4 w-4 text-blue-600" />
-                <Label htmlFor="precipitation-icons" className="font-medium">
+            <div className="flex items-center justify-between p-2 border rounded-lg bg-blue-50">
+              <div className="flex items-center space-x-1.5">
+                <CloudRain className="h-3 w-3 text-blue-600" />
+                <Label htmlFor="precipitation-icons" className="font-medium text-xs">
                   Show Precipitation Icons
                 </Label>
               </div>
@@ -349,43 +654,49 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
       {/* No Weather Data Alert for Woreda Level */}
       {!activeWeatherDataSource && showWeatherData && (
         <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
+          <AlertTriangle className="h-3 w-3" />
+          <AlertDescription className="text-xs">
             Weather data is not available for woreda level. Please select region or zone level to view weather
             information.
           </AlertDescription>
         </Alert>
       )}
 
-      <Tabs defaultValue="map" className="space-y-4">
+      <Tabs defaultValue="map" className="space-y-3">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="map" className="flex items-center space-x-2">
-            <MapIcon className="h-4 w-4" />
+          <TabsTrigger value="map" className="flex items-center space-x-1.5 text-xs">
+            <MapIcon className="h-3 w-3" />
             <span>Map View</span>
           </TabsTrigger>
-          <TabsTrigger value="charts" className="flex items-center space-x-2">
-            <MapIcon className="h-4 w-4" />
+          <TabsTrigger value="charts" className="flex items-center space-x-1.5 text-xs">
+            <MapIcon className="h-3 w-3" />
             <span>Charts</span>
           </TabsTrigger>
-          <TabsTrigger value="data" className="flex items-center space-x-2">
-            <Layers className="h-4 w-4" />
+          <TabsTrigger value="data" className="flex items-center space-x-1.5 text-xs">
+            <Layers className="h-3 w-3" />
             <span>Data View</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="map">
           <Card className="flex-1">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <MapPin className="h-5 w-5" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center space-x-2 text-sm">
+                <MapPin className="h-4 w-4" />
                 <span>
-                  {showWeatherData && activeWeatherDataSource
-                    ? `${getParameterTitle()} - ${selectedYear}`
-                    : `${activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Administrative Boundaries`}
+                  {pestDataLayerEnabled && pestData.length > 0
+                    ? `Pest Management Data - ${pestParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`
+                    : cropProductionLayerEnabled && cropProductionData.length > 0
+                      ? `Crop Production - ${cropParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`
+                      : landLayerEnabled && landData.length > 0
+                        ? `Land Data - ${landParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`
+                        : showWeatherData && activeWeatherDataSource
+                          ? `${getParameterTitle()} - ${selectedYear}`
+                          : `${activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Administrative Boundaries`}
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[600px]">
+            <CardContent className="h-[550px]">
               {weatherError ? (
                 <div className="text-center py-8">
                   <p className="text-red-600 mb-4">Error: {weatherError}</p>
@@ -395,7 +706,17 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
                 </div>
               ) : (
                 <EthiopiaMap
-                  activeLayer={showWeatherData && activeWeatherDataSource ? "weather" : "boundaries"}
+                  activeLayer={
+                    pestDataLayerEnabled && pestData.length > 0
+                      ? "pest"
+                      : cropProductionLayerEnabled && cropProductionData.length > 0
+                        ? "crop"
+                        : landLayerEnabled && landData.length > 0
+                          ? "land"
+                          : showWeatherData && activeWeatherDataSource
+                            ? "weather"
+                            : "boundaries"
+                  }
                   activeMapLevel={activeMapLevel}
                   weatherData={filteredData}
                   weatherParameter={weatherParameter}
@@ -409,6 +730,15 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
                   agricultureLands={agricultureLands}
                   showAgricultureLands={showAgricultureLands}
                   onLandSelect={setSelectedLand}
+                  landData={landData}
+                  landLayerEnabled={landLayerEnabled}
+                  cropProductionData={cropProductionData}
+                  cropProductionLayerEnabled={cropProductionLayerEnabled}
+                  pestData={pestData}
+                  pestDataLayerEnabled={pestDataLayerEnabled}
+                  landParameter={landParameter}
+                  cropParameter={cropParameter}
+                  pestParameter={pestParameter}
                 />
               )}
             </CardContent>
@@ -557,14 +887,16 @@ function MapContent({ setWeatherControlsProps }: { setWeatherControlsProps: (pro
 
 export default function EthiopiaTemperatureMap() {
   const [weatherControlsProps, setWeatherControlsProps] = useState<any>(null)
+  const [layerControlsProps, setLayerControlsProps] = useState<any>(null)
 
   return (
     <MainLayout
       title="Ministry of Agriculture - Ethiopia"
       subtitle="ግብርና ሚኒስቴር - ኢትዮጵያ "
       weatherControlsProps={weatherControlsProps}
+      layerControlsProps={layerControlsProps}
     >
-      <MapContent setWeatherControlsProps={setWeatherControlsProps} />
+      <MapContent setWeatherControlsProps={setWeatherControlsProps} setLayerControlsProps={setLayerControlsProps} />
     </MainLayout>
   )
 }

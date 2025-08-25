@@ -15,18 +15,18 @@ export function MapLevelIndicator() {
           icon: <MapPin className="h-4 w-4" />,
           title: "Region Level",
           description: "Administrative regions of Ethiopia",
-          weatherSource: "Regional weather data available",
-          color: "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200",
-          iconColor: "text-green-600",
+          // weatherSource: "Regional weather data available",
+          // color: "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200",
+          // iconColor: "text-green-600",
         }
       case "zone":
         return {
           icon: <Layers className="h-4 w-4" />,
           title: "Zone Level",
           description: "Administrative zones within Ethiopia",
-          weatherSource: "Zone weather data available",
-          color: "bg-gradient-to-r from-blue-100 to-sky-100 text-blue-800 border-blue-200",
-          iconColor: "text-blue-600",
+          // weatherSource: "Zone weather data available",
+          // color: "bg-gradient-to-r from-blue-100 to-sky-100 text-blue-800 border-blue-200",
+          // iconColor: "text-blue-600",
         }
       case "woreda":
         return {

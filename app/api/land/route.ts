@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import pkg from "pg"
 const { Pool } = pkg
 
@@ -10,10 +10,10 @@ const pool = new Pool({
   port: Number(process.env.DB_PORT) || 5432,
 })
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const year = searchParams.get("year") || "2020"
+    const year = searchParams.get("year") || "2024"
 
     if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME || !process.env.DB_PASS) {
       return NextResponse.json(
@@ -26,37 +26,40 @@ export async function GET(request: Request) {
       )
     }
 
-    console.log("Fetching zone weather data for year:", year)
+    console.log("Fetching land data for year:", year)
 
     const query = `
       SELECT 
         id,
-        adm2_en,
-        adm2_pcode,
+        adm1_en,
+        adm1_pcode,
         year,
-        avg_annual_precipitation_mm_day,
-        avg_annual_max_temperature_c,
-        avg_annual_min_temperature_c
-      FROM z_weather_data
+        total_agri_land,
+        plowed_area,
+        sowed_land,
+        harvested_land
+      FROM land
       WHERE year = $1
-      ORDER BY adm2_en
+      ORDER BY adm1_en
     `
 
     const result = await pool.query(query, [Number.parseInt(year)])
-    console.log("Zone weather query completed, rows:", result.rows.length)
+
+    console.log("Land data fetched successfully:", result.rows.length, "rows")
 
     return NextResponse.json({
       success: true,
       data: result.rows,
-      year: Number.parseInt(year),
       count: result.rows.length,
+      year: Number.parseInt(year),
     })
   } catch (error: any) {
-    console.error("Error fetching zone weather data:", error)
+    console.error("Database error:", error)
+
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch zone weather data",
+        error: "Failed to fetch land data",
         details: error.message,
       },
       { status: 500 },

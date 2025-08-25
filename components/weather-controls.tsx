@@ -1,14 +1,10 @@
 "use client"
-
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
-import { Thermometer, Palette, Calendar } from "lucide-react"
+import { RefreshCw, Thermometer, Palette, Calendar, Sun, CloudRain } from "lucide-react"
 
 interface WeatherControlsProps {
   selectedYear: string
@@ -30,13 +26,21 @@ interface WeatherControlsProps {
   loading: boolean
 }
 
-const colorSchemes = [
-  { id: "red", name: "Red (Temperature)", color: "#dc2626", description: "Best for temperature data" },
-  { id: "blue", name: "Blue (Cool)", color: "#2563eb", description: "Cool color scheme" },
-  { id: "green", name: "Green (Natural)", color: "#16a34a", description: "Natural/agricultural theme" },
-  { id: "orange", name: "Orange (Warm)", color: "#ea580c", description: "Warm color scheme" },
-  { id: "purple", name: "Purple (Contrast)", color: "#9333ea", description: "High contrast" },
+const weatherParameters = [
+  { value: "max_temp", label: "Maximum Temperature", icon: Sun },
+  { value: "min_temp", label: "Minimum Temperature", icon: Thermometer },
+  { value: "precipitation", label: "Precipitation", icon: CloudRain },
 ]
+
+const colorSchemes = [
+  { value: "red", label: "Red", color: "#dc2626" },
+  { value: "blue", label: "Blue", color: "#2563eb" },
+  { value: "green", label: "Green", color: "#16a34a" },
+  { value: "orange", label: "Orange", color: "#ea580c" },
+  { value: "purple", label: "Purple", color: "#9333ea" },
+]
+
+const years = ["2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024"]
 
 export function WeatherControls({
   selectedYear,
@@ -47,127 +51,133 @@ export function WeatherControls({
   onColorSchemeChange,
   colorRanges,
   onColorRangesChange,
-  customRange,
-  onCustomRangeChange,
   dataRange,
   onRefresh,
   loading,
 }: WeatherControlsProps) {
-  const [tempCustomRange, setTempCustomRange] = useState({
-    min: customRange?.min ?? dataRange.min,
-    max: customRange?.max ?? dataRange.max,
-  })
-
-  const selectedColorScheme = colorSchemes.find((scheme) => scheme.id === colorScheme) || colorSchemes[0]
-
-  const handleCustomRangeApply = () => {
-    onCustomRangeChange(tempCustomRange)
-  }
-
-  const handleCustomRangeReset = () => {
-    setTempCustomRange({ min: dataRange.min, max: dataRange.max })
-    onCustomRangeChange(null)
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Basic Controls */}
-      <Card>
-        <CardContent className="space-y-4">
-          {/* Year Selection */}
-          <div className="flex items-center space-x-3">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Label className="text-sm font-medium">Year:</Label>
-            <Select value={selectedYear} onValueChange={onYearChange}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 10 }, (_, i) => 2014 + i).map((year) => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Parameter Selection */}
-          <div className="flex items-center space-x-3">
-            <Thermometer className="h-4 w-4 text-muted-foreground" />
-            <Label className="text-sm font-medium">Parameter:</Label>
-            <Select
-              value={weatherParameter}
-              onValueChange={(value: "max_temp" | "min_temp" | "precipitation") => onParameterChange(value)}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="max_temp">Max Temperature</SelectItem>
-                <SelectItem value="min_temp">Min Temperature</SelectItem>
-                <SelectItem value="precipitation">Precipitation</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button onClick={onRefresh} variant="outline" disabled={loading} className="w-full bg-transparent">
-            {loading ? "Loading..." : "Refresh Data"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Color Selection */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center space-x-2">
-            <Palette className="h-4 w-4" />
-            <span>Color Selection</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-2">
-            {colorSchemes.map((scheme) => (
-              <div
-                key={scheme.id}
-                className={`flex items-center space-x-3 p-2 rounded-lg border cursor-pointer transition-colors ${
-                  colorScheme === scheme.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
-                }`}
-                onClick={() => onColorSchemeChange(scheme.id)}
-              >
-                <div
-                  className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
-                  style={{ backgroundColor: scheme.color }}
-                />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{scheme.name}</div>
-                  <div className="text-xs text-muted-foreground">{scheme.description}</div>
-                </div>
-                {colorScheme === scheme.id && <Badge variant="secondary">Active</Badge>}
-              </div>
+    <div className="space-y-2">
+      {/* Year Selection */}
+      <div className="space-y-1.5">
+        <div className="flex items-center space-x-1.5">
+          <Calendar className="h-2.5 w-2.5 text-gray-600" />
+          <Label className="text-xs font-medium">Year Selection</Label>
+        </div>
+        <Select value={selectedYear} onValueChange={onYearChange}>
+          <SelectTrigger className="h-6 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((year) => (
+              <SelectItem key={year} value={year} className="text-xs">
+                {year}
+              </SelectItem>
             ))}
-          </div>
+          </SelectContent>
+        </Select>
+      </div>
 
-          <Separator />
+      <Separator />
 
-          {/* Color Ranges */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Color Ranges: {colorRanges}</Label>
-            <Slider
-              value={[colorRanges]}
-              onValueChange={(value) => onColorRangesChange(value[0])}
-              min={3}
-              max={20}
-              step={1}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>3 ranges</span>
-              <span>20 ranges</span>
+      {/* Weather Parameter Selection */}
+      <div className="space-y-1.5">
+        <div className="flex items-center space-x-1.5">
+          <Thermometer className="h-2.5 w-2.5 text-blue-600" />
+          <Label className="text-xs font-medium">Weather Parameter</Label>
+        </div>
+        <div className="space-y-1">
+          {weatherParameters.map((param) => {
+            const Icon = param.icon
+            const isActive = weatherParameter === param.value
+            return (
+              <button
+                key={param.value}
+                onClick={() => onParameterChange(param.value as "max_temp" | "min_temp" | "precipitation")}
+                className={`w-full flex items-center space-x-2 p-2 rounded-lg border text-xs transition-all ${
+                  isActive
+                    ? "bg-blue-50 border-blue-200 text-blue-900"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <Icon className={`h-3 w-3 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
+                <span className="font-medium">{param.label}</span>
+                {isActive && <div className="ml-auto w-2 h-2 bg-blue-600 rounded-full"></div>}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Color Scheme */}
+      <div className="space-y-1.5">
+        <div className="flex items-center space-x-1.5">
+          <Palette className="h-2.5 w-2.5 text-gray-600" />
+          <Label className="text-xs font-medium">Color Scheme</Label>
+        </div>
+        <Select value={colorScheme} onValueChange={onColorSchemeChange}>
+          <SelectTrigger className="h-6 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {colorSchemes.map((scheme) => (
+              <SelectItem key={scheme.value} value={scheme.value} className="text-xs">
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: scheme.color }} />
+                  <span>{scheme.label}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Separator />
+
+      {/* Color Ranges Slider */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Color Ranges: {colorRanges}</Label>
+        <Slider
+          value={[colorRanges]}
+          onValueChange={(value) => onColorRangesChange(value[0])}
+          min={3}
+          max={20}
+          step={1}
+          className="w-full"
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>3 ranges</span>
+          <span>20 ranges</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Data Range Info */}
+      {dataRange.min !== dataRange.max && (
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-gray-600">Current Data Range</Label>
+          <div className="text-xs text-gray-500 bg-blue-50 p-1.5 rounded border-l-2 border-blue-200">
+            <div className="flex justify-between">
+              <span>Min: {dataRange.min.toFixed(1)}</span>
+              <span>Max: {dataRange.max.toFixed(1)}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      {/* Refresh Button */}
+      <Button
+        onClick={onRefresh}
+        disabled={loading}
+        size="sm"
+        variant="outline"
+        className="w-full h-6 text-xs bg-transparent"
+      >
+        <RefreshCw className={`h-2.5 w-2.5 mr-1 ${loading ? "animate-spin" : ""}`} />
+        Refresh Data
+      </Button>
     </div>
   )
 }

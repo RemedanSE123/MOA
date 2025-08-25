@@ -1,27 +1,27 @@
-import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
+import { NextResponse } from "next/server"
+import pkg from "pg"
+const { Pool } = pkg
+
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASS,
+  port: Number(process.env.DB_PORT) || 5432,
+})
 
 export async function GET() {
   try {
-    if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME || !process.env.DB_PASS) {
-      console.error("Missing required database environment variables");
+    if (!process.env.DB_USER || !process.env.DB_HOST || !process.env.DB_NAME || !process.env.DB_PASS) {
       return NextResponse.json(
         {
           success: false,
           error: "Database not configured",
-          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT environment variables",
-          missingVars: {
-            DB_HOST: !process.env.DB_HOST,
-            DB_USER: !process.env.DB_USER,
-            DB_NAME: !process.env.DB_NAME,
-            DB_PASS: !process.env.DB_PASS,
-            DB_PORT: !process.env.DB_PORT,
-          },
+          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT in your .env.local",
         },
         { status: 500 },
-      );
+      )
     }
-
     console.log("Fetching weather station data...");
 
     // Query to get station data with geometry 

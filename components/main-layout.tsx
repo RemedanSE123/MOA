@@ -28,6 +28,7 @@ interface MainLayoutProps {
   subtitle?: string
   weatherControlsProps?: any
   agriculturalControlsProps?: any
+  layerControlsProps?: any // Added layer controls props
 }
 
 export function MainLayout({
@@ -36,6 +37,7 @@ export function MainLayout({
   subtitle,
   weatherControlsProps,
   agriculturalControlsProps,
+  layerControlsProps, // Added layer controls props parameter
 }: MainLayoutProps) {
   const [activeItem, setActiveItem] = useState<string>("region-map")
   const [activeMapLevel, setActiveMapLevel] = useState<"region" | "zone" | "woreda">("region")
@@ -83,12 +85,14 @@ export function MainLayout({
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar */}
+          {/* Sidebar - Reduced width from w-80 to w-72 for 80% zoom optimization */}
           <SidebarNavigation
             activeItem={activeItem}
             onItemSelect={handleItemSelect}
             weatherControlsProps={weatherControlsProps}
             agriculturalControlsProps={agriculturalControlsProps}
+            layerControlsProps={layerControlsProps} // Pass layer controls props to sidebar
+            className="w-72"
           />
 
           {/* Main Content */}

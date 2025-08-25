@@ -1,18 +1,20 @@
-"use client";
+"use client"
 
-import type React from "react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { WeatherControls } from "./weather-controls";
+import type React from "react"
+import { useState } from "react"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { WeatherControls } from "@/components/weather-controls"
+import { LayerControls } from "@/components/layer-controls"
+import { AIAssistant } from "@/components/ai-assistant"
 
 import {
   Map,
   CloudRain,
   Wheat,
   Tractor,
-  MilkIcon as Cow,
+  Cog as Cow,
   Building,
   MoreHorizontal,
   ChevronDown,
@@ -21,19 +23,22 @@ import {
   Layers,
   Thermometer,
   Droplets,
-  Palette,
   Settings,
-} from "lucide-react";
+  Bug,
+  Sprout,
+  BarChart3,
+  Bot,
+} from "lucide-react"
 
 interface SidebarItem {
-  id: string;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
+  id: string
+  title: string
+  icon: React.ComponentType<{ className?: string }>
   children?: {
-    id: string;
-    title: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }[];
+    id: string
+    title: string
+    icon: React.ComponentType<{ className?: string }>
+  }[]
 }
 
 const sidebarItems: SidebarItem[] = [
@@ -48,154 +53,188 @@ const sidebarItems: SidebarItem[] = [
     ],
   },
   {
+    id: "map-layers",
+    title: "Map Layers",
+    icon: Layers,
+    children: [
+      { id: "land-layer", title: "Land Data Controls", icon: Sprout },
+     
+    ],
+  },
+  {
     id: "weather-data",
     title: "Weather Data",
     icon: CloudRain,
-    children: [
-      { id: "weather-data-controls", title: "Weather Data Controls", icon: Thermometer },
-    ],
+    children: [{ id: "weather-data-controls", title: "Weather Data Controls", icon: Thermometer }],
   },
   {
-    id: "land-information",
-    title: "Land Information",
-    icon: Wheat,
-    children: [
-      { id: "land-use", title: "Land Use", icon: Map },
-    ],
+    id: "ai-assistant",
+    title: "AI Assistant",
+    icon: Bot,
+    children: [{ id: "ai-chat", title: "Agricultural AI Chat", icon: Bot }],
   },
-  {
-    id: "crop-distribution",
-    title: "Crop Distribution",
-    icon: Tractor,
-    children: [
-      { id: "cereal-crops", title: "Cereal Crops", icon: Wheat },
-    ],
-  },
-  {
-    id: "livestock-information",
-    title: "Livestock Information",
-    icon: Cow,
-    children: [
-      { id: "cattle", title: "Cattle", icon: Cow },
-    ],
-  },
-  {
-    id: "infrastructure",
-    title: "Infrastructure",
-    icon: Building,
-    children: [
-      { id: "irrigation", title: "Irrigation Systems", icon: Droplets },
-      { id: "storage", title: "Storage Facilities", icon: Building },
-      { id: "markets", title: "Markets", icon: MapPin },
-    ],
-  },
-  {
-    id: "other",
-    title: "Other",
-    icon: MoreHorizontal,
-    children: [
-      { id: "other", title: "other", icon: Settings },
-    ],
-  },
-];
+  // {
+  //   id: "land-information",
+  //   title: "Land Information",
+  //   icon: Wheat,
+  //   children: [{ id: "land-use", title: "Land Use", icon: Map }],
+  // },
+  // {
+  //   id: "crop-distribution",
+  //   title: "Crop Distribution",
+  //   icon: Tractor,
+  //   children: [{ id: "cereal-crops", title: "Cereal Crops", icon: Wheat }],
+  // },
+  // {
+  //   id: "livestock-information",
+  //   title: "Livestock Information",
+  //   icon: Cow,
+  //   children: [{ id: "cattle", title: "Cattle", icon: Cow }],
+  // },
+  // {
+  //   id: "infrastructure",
+  //   title: "Infrastructure",
+  //   icon: Building,
+  //   children: [
+  //     { id: "irrigation", title: "Irrigation Systems", icon: Droplets },
+  //     { id: "storage", title: "Storage Facilities", icon: Building },
+  //     { id: "markets", title: "Markets", icon: MapPin },
+  //   ],
+  // },
+  // {
+  //   id: "other",
+  //   title: "Other",
+  //   icon: MoreHorizontal,
+  //   children: [{ id: "other", title: "other", icon: Settings }],
+  // },
+]
 
 interface SidebarNavigationProps {
-  activeItem?: string;
-  onItemSelect?: (itemId: string) => void;
-  className?: string;
+  activeItem?: string
+  onItemSelect?: (itemId: string) => void
+  className?: string
+  layerControlsProps?: {
+    landLayerEnabled: boolean
+    onLandLayerToggle: (enabled: boolean) => void
+    cropProductionLayerEnabled: boolean
+    onCropProductionLayerToggle: (enabled: boolean) => void
+    pestDataLayerEnabled: boolean
+    onPestDataLayerToggle: (enabled: boolean) => void
+    selectedYear: string
+    onYearChange: (year: string) => void
+    landParameter: string
+    onLandParameterChange: (parameter: string) => void
+    cropParameter: string
+    onCropParameterChange: (parameter: string) => void
+    pestParameter: string
+    onPestParameterChange: (parameter: string) => void
+    colorScheme: string
+    onColorSchemeChange: (scheme: string) => void
+    onRefresh: () => void
+    loading: boolean
+  }
   weatherControlsProps?: {
-    selectedYear: string;
-    onYearChange: (year: string) => void;
-    weatherParameter: "max_temp" | "min_temp" | "precipitation";
-    onParameterChange: (parameter: "max_temp" | "min_temp" | "precipitation") => void;
-    colorScheme: string;
-    onColorSchemeChange: (scheme: string) => void;
-    colorRanges: number;
-    onColorRangesChange: (ranges: number) => void;
-    customRange: { min: number; max: number } | null;
-    onCustomRangeChange: (range: { min: number; max: number } | null) => void;
-    useCustomRange: boolean;
-    onUseCustomRangeChange: (use: boolean) => void;
-    showPrecipitationIcons: boolean;
-    onShowPrecipitationIconsChange: (show: boolean) => void;
-    dataRange: { min: number; max: number };
-    onRefresh: () => void;
-    loading: boolean;
-  };
+    selectedYear: string
+    onYearChange: (year: string) => void
+    weatherParameter: "max_temp" | "min_temp" | "precipitation"
+    onParameterChange: (parameter: "max_temp" | "min_temp" | "precipitation") => void
+    colorScheme: string
+    onColorSchemeChange: (scheme: string) => void
+    colorRanges: number
+    onColorRangesChange: (ranges: number) => void
+    customRange: { min: number; max: number } | null
+    onCustomRangeChange: (range: { min: number; max: number } | null) => void
+    useCustomRange: boolean
+    onUseCustomRangeChange: (use: boolean) => void
+    showPrecipitationIcons: boolean
+    onShowPrecipitationIconsChange: (show: boolean) => void
+    dataRange: { min: number; max: number }
+    onRefresh: () => void
+    loading: boolean
+  }
   agriculturalControlsProps?: {
-    activeCategory: string;
-    onCategoryChange: (category: string) => void;
-    activeSubcategory: string;
-    onSubcategoryChange: (subcategory: string) => void;
-    visualizationType: "choropleth" | "pie" | "bar";
-    onVisualizationTypeChange: (type: "choropleth" | "pie" | "bar") => void;
-    showLegend: boolean;
-    onShowLegendChange: (show: boolean) => void;
-    onRefresh: () => void;
-    loading: boolean;
-    dataStats?: any;
-  };
+    activeCategory: string
+    onCategoryChange: (category: string) => void
+    activeSubcategory: string
+    onSubcategoryChange: (subcategory: string) => void
+    visualizationType: "choropleth" | "pie" | "bar"
+    onVisualizationTypeChange: (type: "choropleth" | "pie" | "bar") => void
+    showLegend: boolean
+    onShowLegendChange: (show: boolean) => void
+    onRefresh: () => void
+    loading: boolean
+    dataStats?: any
+  }
 }
 
 export function SidebarNavigation({
   activeItem,
   onItemSelect,
   className,
+  layerControlsProps,
   weatherControlsProps,
   agriculturalControlsProps,
 }: SidebarNavigationProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [expandedItems, setExpandedItems] = useState<string[]>([])
 
   const toggleExpanded = (itemId: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
+    setExpandedItems((prev) => (prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]))
+  }
 
   const handleItemClick = (itemId: string, hasChildren: boolean) => {
     if (hasChildren) {
-      toggleExpanded(itemId);
+      toggleExpanded(itemId)
     } else {
-      onItemSelect?.(itemId);
+      onItemSelect?.(itemId)
     }
-  };
+  }
+
+  // Get active data layers for AI context
+  const getActiveDataLayers = () => {
+    const layers = []
+    if (layerControlsProps?.landLayerEnabled) layers.push("Land Data")
+    if (layerControlsProps?.cropProductionLayerEnabled) layers.push("Crop Production")
+    if (layerControlsProps?.pestDataLayerEnabled) layers.push("Pest Data")
+    if (weatherControlsProps && activeItem?.includes("weather")) layers.push("Weather Data")
+    return layers
+  }
 
   return (
     <div
       className={cn(
         "flex flex-col h-full bg-sidebar border-r border-sidebar-border",
-        isCollapsed ? "w-16" : "w-96",
-        className
+        isCollapsed ? "w-12" : "w-50",
+        className,
       )}
     >
       {/* Header */}
-      <div className="p-4 border-b border-sidebar-border">
+      <div className="p-2 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
             <div>
-              <h2 className="text-lg font-semibold text-sidebar-foreground">Ministry of Agriculture</h2>
-              <p className="text-sm text-sidebar-foreground/70">Ethiopia Agricultural Data Portal</p>
+              <h2 className="text-sm font-semibold text-sidebar-foreground">Ministry of Agriculture</h2>
+              <p className="text-xs text-sidebar-foreground/70">Ethiopia Agricultural Data Portal</p>
             </div>
           )}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent"
+            className="text-sidebar-foreground hover:bg-sidebar-accent h-6 w-6 p-0"
           >
-            <Map className="h-4 w-4" />
+            <Map className="h-3 w-3" />
           </Button>
         </div>
       </div>
 
       {/* Navigation Items */}
-      <ScrollArea className="flex-1 p-2 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent scrollbar-track-sidebar">
-        <div className="space-y-1">
+      <ScrollArea className="flex-1 p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent scrollbar-track-sidebar">
+        <div className="space-y-0.5">
           {sidebarItems.map((item) => {
-            const isExpanded = expandedItems.includes(item.id);
-            const hasChildren = item.children && item.children.length > 0;
-            const Icon = item.icon;
+            const isExpanded = expandedItems.includes(item.id)
+            const hasChildren = item.children && item.children.length > 0
+            const Icon = item.icon
 
             return (
               <div key={item.id}>
@@ -203,64 +242,84 @@ export function SidebarNavigation({
                 <Button
                   variant="ghost"
                   className={cn(
-                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-xs h-7",
                     activeItem === item.id && "bg-sidebar-primary text-sidebar-primary-foreground",
-                    isCollapsed && "justify-center px-2"
+                    isCollapsed && "justify-center px-1",
                   )}
                   onClick={() => handleItemClick(item.id, !!hasChildren)}
                 >
-                  <Icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                  <Icon className={cn("h-3 w-3", !isCollapsed && "mr-1.5")} />
                   {!isCollapsed && (
                     <>
                       <span className="flex-1 text-left">{item.title}</span>
                       {hasChildren &&
-                        (isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)}
+                        (isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
                     </>
                   )}
                 </Button>
 
                 {/* Children Items */}
                 {hasChildren && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-1 space-y-1">
+                  <div className="ml-2 mt-0.5 space-y-0.5">
                     {item.children?.map((child) => {
-                      const ChildIcon = child.icon;
+                      const ChildIcon = child.icon
                       return (
                         <Button
                           key={child.id}
                           variant="ghost"
                           className={cn(
-                            "w-full justify-start text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                            activeItem === child.id && "bg-sidebar-primary text-sidebar-primary-foreground"
+                            "w-full justify-start text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground h-6",
+                            activeItem === child.id && "bg-sidebar-primary text-sidebar-primary-foreground",
                           )}
                           onClick={() => handleItemClick(child.id, false)}
                         >
-                          <ChildIcon className="h-3 w-3 mr-3" />
+                          <ChildIcon className="h-2.5 w-2.5 mr-1.5" />
                           <span className="flex-1 text-left">{child.title}</span>
                         </Button>
-                      );
+                      )
                     })}
                   </div>
                 )}
 
+                {/* Layer Controls */}
+                {item.id === "map-layers" && isExpanded && !isCollapsed && layerControlsProps && (
+                  <div className="ml-2 mt-1 space-y-1">
+                    <LayerControls {...layerControlsProps} />
+                  </div>
+                )}
+
+                {/* Weather Controls */}
                 {item.id === "weather-data" && isExpanded && !isCollapsed && weatherControlsProps && (
-                  <div className="ml-4 mt-2">
+                  <div className="ml-2 mt-1">
                     <WeatherControls {...weatherControlsProps} />
                   </div>
                 )}
+
+                {/* AI Assistant */}
+                {item.id === "ai-assistant" && isExpanded && !isCollapsed && (
+                  <div className="ml-2 mt-1">
+                    <AIAssistant
+                      activeMapLevel={
+                        activeItem?.includes("region") ? "region" : activeItem?.includes("zone") ? "zone" : "woreda"
+                      }
+                      activeDataLayers={getActiveDataLayers()}
+                      currentYear={layerControlsProps?.selectedYear || weatherControlsProps?.selectedYear || "2020"}
+                      className="h-80"
+                    />
+                  </div>
+                )}
               </div>
-            );
+            )
           })}
         </div>
       </ScrollArea>
 
       {/* Footer */}
       {!isCollapsed && (
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="text-xs text-gray-500 text-center">
-            © 2025 Kukunet Digital. All rights reserved.
-          </div>
+        <div className="p-2 border-t border-sidebar-border">
+          <div className="text-xs text-gray-500 text-center">© 2025 Kukunet Digital. All rights reserved.</div>
         </div>
       )}
     </div>
-  );
+  )
 }

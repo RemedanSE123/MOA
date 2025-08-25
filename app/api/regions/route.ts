@@ -1,22 +1,31 @@
 import { NextResponse } from "next/server"
-import { pool } from "@/lib/db"
+import pkg from "pg"
+const { Pool } = pkg
+
+// Choose Neon in production, localhost in dev
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      }
+    : {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASS,
+        port: Number(process.env.DB_PORT) || 5432,
+      }
+)
 
 export async function GET() {
   try {
-    if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME || !process.env.DB_PASS) {
-      console.error(" Missing required database environment variables")
+    if (!process.env.DB_USER || !process.env.DB_HOST || !process.env.DB_NAME || !process.env.DB_PASS) {
       return NextResponse.json(
         {
           success: false,
           error: "Database not configured",
-          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT environment variables",
-          missingVars: {
-            DB_HOST: !process.env.DB_HOST,
-            DB_USER: !process.env.DB_USER,
-            DB_NAME: !process.env.DB_NAME,
-            DB_PASS: !process.env.DB_PASS,
-            DB_PORT: !process.env.DB_PORT,
-          },
+          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT in your .env.local",
         },
         { status: 500 },
       )
@@ -24,7 +33,6 @@ export async function GET() {
 
     console.log("Fetching region data...")
 
-    // Query to get region data with geometry
     const query = `
       SELECT 
         gid,
@@ -37,8 +45,7 @@ export async function GET() {
 
     const result = await pool.query(query)
 
-    // Parse geometry JSON for each row
-    const data = result.rows.map((row) => ({
+    const data = result.rows.map(row => ({
       ...row,
       geometry: JSON.parse(row.geometry),
     }))
@@ -47,21 +54,17 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: data,
+      data,
       count: data.length,
     })
-  } catch (error) {
-    console.error(" Database error details:", {
-      message: error instanceof Error ? error.message : "Unknown error",
-      code: (error as any)?.code,
-      detail: (error as any)?.detail,
-    })
+  } catch (error: any) {
+    console.error("Database error:", error)
 
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch region data",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error.message,
       },
       { status: 500 },
     )
