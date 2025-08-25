@@ -2,41 +2,46 @@ import { NextResponse } from "next/server"
 import pkg from "pg"
 const { Pool } = pkg
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASS,
-  port: Number(process.env.DB_PORT) || 5432,
-})
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      }
+    : {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASS,
+        port: Number(process.env.DB_PORT) || 5432,
+      }
+)
 
 export async function GET() {
   try {
-    if (!process.env.DB_USER || !process.env.DB_HOST || !process.env.DB_NAME || !process.env.DB_PASS) {
+    if (!process.env.DATABASE_URL && (!process.env.DB_USER || !process.env.DB_HOST)) {
       return NextResponse.json(
         {
           success: false,
           error: "Database not configured",
-          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT in your .env.local",
+          details: "Missing connection variables",
         },
-        { status: 500 },
+        { status: 500 }
       )
     }
+
     console.log("Fetching weather station data...");
 
-    // Query to get station data with geometry 
     const query = `
       SELECT 
         id,
         ST_AsGeoJSON(geom) as geometry
-        
       FROM public.stations
       ORDER BY id ASC
     `;
 
     const result = await pool.query(query);
 
-    // Parse geometry JSON for each row
     const data = result.rows.map((row) => ({
       ...row,
       geometry: JSON.parse(row.geometry),
@@ -49,20 +54,20 @@ export async function GET() {
       data: data,
       count: data.length,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Database error details:", {
-      message: error instanceof Error ? error.message : "Unknown error",
-      code: (error as any)?.code,
-      detail: (error as any)?.detail,
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
     });
 
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch weather station data",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error.message,
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
