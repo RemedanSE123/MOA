@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Shield, Globe } from "lucide-react"
+import { Shield, Globe, Home } from "lucide-react"
 import Image from "next/image"
 
 interface TopNavigationProps {
@@ -72,23 +72,21 @@ export function TopNavigation({ title = "Agricultural Data Portal", subtitle }: 
       {/* Right Section - Date & Language */}
       <div className="flex items-center space-x-6">
 
-        {/* Date/Time Panel */}
-        <div className="flex flex-col items-center justify-center text-xs font-medium text-black-500">
-          <div>{dateStr}</div>
-          <div className="mt-0.5 font-mono">{timeStr}</div>
-        </div>
+  {/* Date/Time Panel */}
+  <div className="flex flex-col items-center justify-center text-xs font-medium text-black-500">
+    <div>{dateStr}</div>
+    <div className="mt-0.5 font-mono">{timeStr}</div>
+  </div>
 
-        {/* Language switch */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200"
-        >
-          <Globe className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">EN</span>
-        </Button>
 
-      </div>
+
+
+  {/* Home Button */}
+  <a href="https://kukunetdigital.com/" className="flex items-center text-muted-foreground hover:text-foreground hover:bg-muted/50 px-2 py-1 rounded transition-all duration-200">
+    <Home className="h-4 w-4 mr-2" />
+   
+  </a>
+</div>
     </header>
   )
 }
