@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import pkg from "pg"
 const { Pool } = pkg
 
-// Choose Neon in production, localhost in dev
+// Use DATABASE_URL in production, individual vars locally
 const pool = new Pool(
   process.env.DATABASE_URL
     ? {
@@ -20,12 +20,13 @@ const pool = new Pool(
 
 export async function GET() {
   try {
-    if (!process.env.DB_USER || !process.env.DB_HOST || !process.env.DB_NAME || !process.env.DB_PASS) {
+    // ✅ Smarter check
+    if (!process.env.DATABASE_URL && (!process.env.DB_USER || !process.env.DB_HOST)) {
       return NextResponse.json(
         {
           success: false,
           error: "Database not configured",
-          details: "Please set DB_HOST, DB_USER, DB_NAME, DB_PASS, and DB_PORT in your .env.local",
+          details: "Missing connection variables",
         },
         { status: 500 },
       )
