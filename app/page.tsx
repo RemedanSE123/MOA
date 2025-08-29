@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { DataCharts } from "@/components/data-charts"
 import {
   Thermometer,
   MapPin,
@@ -138,7 +139,7 @@ function MapContent({
     setWeatherError(null)
 
     try {
-      const endpoint = activeWeatherDataSource === "r_weather_data" ? "/api/weather-data" : "/api/z-weather-data"
+      const endpoint = activeWeatherDataSource === "r_weather_data" ? "/api/r-weather-data" : "/api/z-weather-data"
       const response = await fetch(`${endpoint}?year=${year}`)
 
       if (!response.ok) {
@@ -221,10 +222,10 @@ function MapContent({
       const data = await response.json()
       if (data.success) {
         setLandData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} land records`)
+        console.log(`Loaded ${data.data.length} land records`)
       }
     } catch (err) {
-      console.error("[v0] Error fetching land data:", err)
+      console.error("Error fetching land data:", err)
     } finally {
       setLandLoading(false)
     }
@@ -238,15 +239,15 @@ function MapContent({
 
     setCropProductionLoading(true)
     try {
-      const response = await fetch(`/api/cropproduction?year=${year}`)
+      const response = await fetch(`//cropproduction?year=${year}`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const data = await response.json()
       if (data.success) {
         setCropProductionData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} crop production records`)
+        console.log(`Loaded ${data.data.length} crop production records`)
       }
     } catch (err) {
-      console.error("[v0] Error fetching crop production data:", err)
+      console.error("Error fetching crop production data:", err)
     } finally {
       setCropProductionLoading(false)
     }
@@ -265,18 +266,18 @@ function MapContent({
       const data = await response.json()
       if (data.success) {
         setPestData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} pest data records for ${year}`)
+        console.log(`Loaded ${data.data.length} pest data records for ${year}`)
         if (data.data.length > 0) {
           const totalIncidence = data.data.reduce(
             (sum: number, item: any) => sum + (Number.parseFloat(item.pest_incidence) || 0),
             0,
           )
           const avgIncidence = totalIncidence / data.data.length
-          console.log(`[v0] Average pest incidence: ${avgIncidence.toFixed(2)}%`)
+          console.log(`Average pest incidence: ${avgIncidence.toFixed(2)}%`)
         }
       }
     } catch (err) {
-      console.error("[v0] Error fetching pest data:", err)
+      console.error("Error fetching pest data:", err)
     } finally {
       setPestLoading(false)
     }
@@ -669,7 +670,7 @@ function MapContent({
             <span>Map View</span>
           </TabsTrigger>
           <TabsTrigger value="charts" className="flex items-center space-x-1.5 text-xs">
-            <MapIcon className="h-3 w-3" />
+            <BarChart3 className="h-3 w-3" />
             <span>Charts</span>
           </TabsTrigger>
           <TabsTrigger value="data" className="flex items-center space-x-1.5 text-xs">
@@ -696,7 +697,7 @@ function MapContent({
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[550px]">
+            <CardContent className="h-[400px] md:h-[550px]">
               {weatherError ? (
                 <div className="text-center py-8">
                   <p className="text-red-600 mb-4">Error: {weatherError}</p>
@@ -806,11 +807,19 @@ function MapContent({
         </TabsContent>
 
         <TabsContent value="charts">
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground">Weather data charts will be available in the next update.</p>
-            </CardContent>
-          </Card>
+          <DataCharts
+            landData={landData}
+            cropProductionData={cropProductionData}
+            pestData={pestData}
+            weatherData={filteredData}
+            activeDataLayers={[
+              ...(landLayerEnabled ? ["Land Data"] : []),
+              ...(cropProductionLayerEnabled ? ["Crop Production"] : []),
+              ...(pestDataLayerEnabled ? ["Pest Data"] : []),
+              ...(showWeatherData ? ["Weather Data"] : []),
+            ]}
+            selectedYear={selectedYear}
+          />
         </TabsContent>
 
         <TabsContent value="data">
@@ -820,7 +829,7 @@ function MapContent({
             </CardHeader>
             <CardContent>
               {filteredData.length > 0 ? (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto -mx-2 md:mx-0">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
@@ -851,11 +860,11 @@ function MapContent({
                   </table>
 
                   {filteredData.length > 20 && (
-                    <div className="flex justify-between mt-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
                       <button
                         onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 0))}
                         disabled={currentPage === 0}
-                        className="px-3 py-1 border rounded hover:bg-muted/20 disabled:opacity-50"
+                        className="px-3 py-1 border rounded hover:bg-muted/20 disabled:opacity-50 text-sm"
                       >
                         Previous
                       </button>
@@ -867,7 +876,7 @@ function MapContent({
                           setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(filteredData.length / 20) - 1))
                         }
                         disabled={currentPage === Math.ceil(filteredData.length / 20) - 1}
-                        className="px-3 py-1 border rounded hover:bg-muted/20 disabled:opacity-50"
+                        className="px-3 py-1 border rounded hover:bg-muted/20 disabled:opacity-50 text-sm"
                       >
                         Next
                       </button>

@@ -177,6 +177,10 @@ export function SidebarNavigation({
 }: SidebarNavigationProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check if mobile
+ 
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems((prev) => (prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]))
@@ -185,11 +189,22 @@ export function SidebarNavigation({
   const handleItemClick = (itemId: string, hasChildren: boolean) => {
     if (hasChildren) {
       toggleExpanded(itemId)
+      // Auto-expand sidebar when clicking on parent items with children
+      if (isCollapsed) {
+        setIsCollapsed(false)
+      }
     } else {
       onItemSelect?.(itemId)
     }
   }
 
+  const handleToggleCollapse = () => {
+    setIsCollapsed(!isCollapsed)
+    // Close all expanded items when collapsing
+    if (!isCollapsed) {
+      setExpandedItems([])
+    }
+  }
   // Get active data layers for AI context
   const getActiveDataLayers = () => {
     const layers = []
@@ -204,33 +219,34 @@ export function SidebarNavigation({
     <div
       className={cn(
         "flex flex-col h-full bg-sidebar border-r border-sidebar-border",
-        isCollapsed ? "w-12" : "w-50",
+        isCollapsed ? "w-16" : isMobile ? "w-64" : "w-72",
         className,
       )}
     >
       {/* Header */}
-      <div className="p-2 border-b border-sidebar-border">
+      <div className="p-3 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
             <div>
-              <h2 className="text-sm font-semibold text-sidebar-foreground">Ministry of Agriculture</h2>
-              <p className="text-xs text-sidebar-foreground/70">Ethiopia Agricultural Data Portal</p>
+              <h2 className="text-sm font-semibold text-sidebar-foreground truncate">Ministry of Agriculture</h2>
+              <p className="text-xs text-sidebar-foreground/70 truncate">Ethiopia Agricultural Data Portal</p>
             </div>
           )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-sidebar-foreground hover:bg-sidebar-accent h-6 w-6 p-0"
+            onClick={handleToggleCollapse}
+            className="text-sidebar-foreground hover:bg-sidebar-accent h-8 w-8 p-0 flex-shrink-0"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <Map className="h-3 w-3" />
+            <Map className={cn("h-4 w-4 transition-transform duration-200", isCollapsed && "rotate-180")} />
           </Button>
         </div>
       </div>
 
       {/* Navigation Items */}
-      <ScrollArea className="flex-1 p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent scrollbar-track-sidebar">
-        <div className="space-y-0.5">
+      <ScrollArea className="flex-1 p-2 overflow-y-auto">
+        <div className="space-y-1">
           {sidebarItems.map((item) => {
             const isExpanded = expandedItems.includes(item.id)
             const hasChildren = item.children && item.children.length > 0
@@ -242,25 +258,26 @@ export function SidebarNavigation({
                 <Button
                   variant="ghost"
                   className={cn(
-                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-xs h-7",
+                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm h-10 transition-all duration-200",
                     activeItem === item.id && "bg-sidebar-primary text-sidebar-primary-foreground",
-                    isCollapsed && "justify-center px-1",
+                    isCollapsed && "justify-center px-2",
                   )}
                   onClick={() => handleItemClick(item.id, !!hasChildren)}
+                  title={isCollapsed ? item.title : undefined}
                 >
-                  <Icon className={cn("h-3 w-3", !isCollapsed && "mr-1.5")} />
+                  <Icon className={cn("h-4 w-4 flex-shrink-0", !isCollapsed && "mr-3")} />
                   {!isCollapsed && (
                     <>
                       <span className="flex-1 text-left">{item.title}</span>
                       {hasChildren &&
-                        (isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
+                        (isExpanded ? <ChevronDown className="h-4 w-4 transition-transform duration-200" /> : <ChevronRight className="h-4 w-4 transition-transform duration-200" />)}
                     </>
                   )}
                 </Button>
 
                 {/* Children Items */}
                 {hasChildren && isExpanded && !isCollapsed && (
-                  <div className="ml-2 mt-0.5 space-y-0.5">
+                  <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
                     {item.children?.map((child) => {
                       const ChildIcon = child.icon
                       return (
@@ -268,12 +285,12 @@ export function SidebarNavigation({
                           key={child.id}
                           variant="ghost"
                           className={cn(
-                            "w-full justify-start text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground h-6",
+                            "w-full justify-start text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground h-9 transition-all duration-200",
                             activeItem === child.id && "bg-sidebar-primary text-sidebar-primary-foreground",
                           )}
                           onClick={() => handleItemClick(child.id, false)}
                         >
-                          <ChildIcon className="h-2.5 w-2.5 mr-1.5" />
+                          <ChildIcon className="h-3.5 w-3.5 mr-2.5 flex-shrink-0" />
                           <span className="flex-1 text-left">{child.title}</span>
                         </Button>
                       )
@@ -283,28 +300,28 @@ export function SidebarNavigation({
 
                 {/* Layer Controls */}
                 {item.id === "map-layers" && isExpanded && !isCollapsed && layerControlsProps && (
-                  <div className="ml-2 mt-1 space-y-1">
+                  <div className="ml-4 mt-2 space-y-2 animate-in slide-in-from-top-2 duration-200">
                     <LayerControls {...layerControlsProps} />
                   </div>
                 )}
 
                 {/* Weather Controls */}
                 {item.id === "weather-data" && isExpanded && !isCollapsed && weatherControlsProps && (
-                  <div className="ml-2 mt-1">
+                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
                     <WeatherControls {...weatherControlsProps} />
                   </div>
                 )}
 
                 {/* AI Assistant */}
                 {item.id === "ai-assistant" && isExpanded && !isCollapsed && (
-                  <div className="ml-2 mt-1">
+                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
                     <AIAssistant
                       activeMapLevel={
                         activeItem?.includes("region") ? "region" : activeItem?.includes("zone") ? "zone" : "woreda"
                       }
                       activeDataLayers={getActiveDataLayers()}
                       currentYear={layerControlsProps?.selectedYear || weatherControlsProps?.selectedYear || "2020"}
-                      className="h-80"
+                      className={isMobile ? "h-64" : "h-80"}
                     />
                   </div>
                 )}
@@ -316,8 +333,25 @@ export function SidebarNavigation({
 
       {/* Footer */}
       {!isCollapsed && (
-        <div className="p-2 border-t border-sidebar-border">
-          <div className="text-xs text-gray-500 text-center">© 2025 Kukunet Digital. All rights reserved.</div>
+       <div className="p-3 border-t border-sidebar-border bg-green-600">
+  <div className="text-xs text-center">
+    <a
+      href="https://www.kukunetdigital.com"
+      className="text-white transition-colors duration-300 hover:text-green-200"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      © 2025 Powered by: KUKUNET digital.
+    </a>
+  </div>
+</div>
+
+      )}
+      
+      {/* Collapsed state tooltip */}
+      {isCollapsed && (
+        <div className="absolute left-full top-4 ml-2 px-2 py-1 bg-sidebar-primary text-sidebar-primary-foreground text-xs rounded opacity-0 pointer-events-none transition-opacity duration-200 hover:opacity-100 z-50">
+          Click to expand
         </div>
       )}
     </div>

@@ -26,11 +26,6 @@ interface AIAssistantProps {
   className?: string
 }
 
-// const suggestedQueries = [
-//   "What are the main crops grown in Ethiopia?",
-
-// ]
-
 export function AIAssistant({
   activeMapLevel = "region",
   activeDataLayers = [],
@@ -41,9 +36,8 @@ export function AIAssistant({
     {
       id: "1",
       role: "assistant",
-      content: `Hello!`,
+      content: `Hello! I'm your AI Agricultural Assistant. `,
       timestamp: new Date(),
-      
     },
   ])
   const [input, setInput] = useState("")
@@ -63,33 +57,243 @@ export function AIAssistant({
     scrollToBottom()
   }, [messages])
 
+  // Fetch real data from database
+  const fetchDatabaseData = async (query: string) => {
+    try {
+      // Determine which API endpoint to call based on query
+      let endpoint = ""
+      let params = `?year=${currentYear}`
+      
+      if (query.includes("crop") || query.includes("production") || query.includes("teff") || query.includes("maize") || query.includes("wheat")) {
+        endpoint = "/api/cropproduction"
+      } else if (query.includes("land") || query.includes("agricultural") || query.includes("farming")) {
+        endpoint = "/api/land"
+      } else if (query.includes("pest") || query.includes("disease") || query.includes("insect")) {
+        endpoint = "/api/pestdata"
+      } else if (query.includes("weather") || query.includes("rain") || query.includes("temperature") || query.includes("climate")) {
+        endpoint = activeMapLevel === "zone" ? "/api/z-weather-data" : "/api/r-weather-data"
+      } else if (query.includes("region") || query.includes("area") || query.includes("location")) {
+        endpoint = "/api/regions"
+        params = ""
+      }
+      
+      if (endpoint) {
+        const response = await fetch(endpoint + params)
+        const data = await response.json()
+        return data.success ? data.data : null
+      }
+      
+      return null
+    } catch (error) {
+      console.error("Error fetching database data:", error)
+      return null
+    }
+  }
+
   const generateResponse = async (userQuery: string): Promise<string> => {
-    // Simulate AI processing with contextual responses
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    // Fetch real data from database
+    const dbData = await fetchDatabaseData(userQuery)
+    
+    // Simulate AI processing
+    await new Promise((resolve) => setTimeout(resolve, 800))
 
     const query = userQuery.toLowerCase()
 
+    // Handle general questions
+    if (query.includes("hello") || query.includes("hi") || query.includes("help")) {
+      return `Hello! I'm here to help you analyze Ethiopia's agricultural data. I can provide insights on:
+
+🌾 **Crop Production** - Teff, maize, wheat, barley production by region
+🌍 **Land Use** - Agricultural land, plowed areas, sowed and harvested land
+🦗 **Pest Management** - Pest incidence rates, affected areas, crop losses
+🌤️ **Weather Data** - Temperature and precipitation patterns
+📊 **Regional Analysis** - Compare different regions and zones
+
+Try asking: "What are the top crop producing regions?" or "Show me pest data for ${currentYear}"`
+    }
+
+    // Handle crop/production queries with real data
     if (query.includes("crop") || query.includes("production")) {
-      return `Based on the agricultural data for ${currentYear}, Ethiopia's main crops include teff (indigenous grain), maize, wheat, and barley. Teff production is highest in the central highlands, while maize dominates in the western regions. Current data shows regional variations in production efficiency, with some areas achieving 2-3 tons per hectare. Would you like me to analyze specific crop performance by ${activeMapLevel}?`
+      if (dbData && dbData.length > 0) {
+        // Analyze real crop data
+        const totalTeff = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.teff_production_mt) || 0), 0)
+        const totalMaize = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.maize_production_mt) || 0), 0)
+        const totalWheat = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.wheat_production_mt) || 0), 0)
+        const totalBarley = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.barley_production_mt) || 0), 0)
+        
+        const topTeffRegion = dbData.reduce((max: any, item: any) => 
+          (parseFloat(item.teff_production_mt) || 0) > (parseFloat(max.teff_production_mt) || 0) ? item : max, dbData[0])
+        
+        const topMaizeRegion = dbData.reduce((max: any, item: any) => 
+          (parseFloat(item.maize_production_mt) || 0) > (parseFloat(max.maize_production_mt) || 0) ? item : max, dbData[0])
+
+        return `**Crop Production Analysis for ${currentYear}:**
+
+📊 **Total Production (Metric Tons):**
+• Teff: ${totalTeff.toLocaleString()} MT
+• Maize: ${totalMaize.toLocaleString()} MT  
+• Wheat: ${totalWheat.toLocaleString()} MT
+• Barley: ${totalBarley.toLocaleString()} MT
+
+🏆 **Top Producing Regions:**
+• Teff: ${topTeffRegion.adm1_en} (${parseFloat(topTeffRegion.teff_production_mt).toLocaleString()} MT)
+• Maize: ${topMaizeRegion.adm1_en} (${parseFloat(topMaizeRegion.maize_production_mt).toLocaleString()} MT)
+
+📈 **Key Insights:**
+• ${dbData.length} regions reported production data
+• Teff remains Ethiopia's staple crop with ${((totalTeff/(totalTeff+totalMaize+totalWheat+totalBarley))*100).toFixed(1)}% of total production
+• Regional variations show diverse agricultural potential across Ethiopia`
+      } else {
+        return `Based on Ethiopia's agricultural patterns, the main crops include teff (indigenous grain), maize, wheat, and barley. Teff production is typically highest in the central highlands, while maize dominates in western regions. Would you like me to analyze specific crop performance data for ${currentYear}?`
+      }
     }
 
+    // Handle pest queries with real data
     if (query.includes("pest") || query.includes("disease")) {
-      return `Pest management data for ${currentYear} shows varying levels of agricultural threats across regions. The most common issues include fall armyworm affecting maize crops, wheat rust in highland areas, and locust swarms in eastern regions. Average pest incidence rates range from 5-15% depending on the region and crop type. I can provide detailed pest pressure analysis for specific areas if needed.`
+      if (dbData && dbData.length > 0) {
+        const avgIncidence = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.pest_incidence) || 0), 0) / dbData.length
+        const totalAffectedArea = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.affected_area_ha) || 0), 0)
+        const totalCropLoss = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.crop_loss_tons) || 0), 0)
+        const totalControlCost = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.pest_control_cost_etb) || 0), 0)
+        
+        const highestIncidenceRegion = dbData.reduce((max: any, item: any) => 
+          (parseFloat(item.pest_incidence) || 0) > (parseFloat(max.pest_incidence) || 0) ? item : max, dbData[0])
+
+        return `**Pest Management Analysis for ${currentYear}:**
+
+⚠️ **Overall Situation:**
+• Average pest incidence: ${avgIncidence.toFixed(1)}%
+• Total affected area: ${totalAffectedArea.toLocaleString()} hectares
+• Total crop losses: ${totalCropLoss.toLocaleString()} tons
+• Control costs: ${totalControlCost.toLocaleString()} ETB
+
+🎯 **Highest Risk Region:**
+• ${highestIncidenceRegion.adm1_en}: ${parseFloat(highestIncidenceRegion.pest_incidence).toFixed(1)}% incidence rate
+
+📋 **Recommendations:**
+• Focus pest control efforts on high-incidence regions
+• Implement integrated pest management strategies
+• Monitor seasonal patterns for early intervention`
+      } else {
+        return `Pest management data for ${currentYear} shows varying levels of agricultural threats across regions. Common issues include fall armyworm affecting maize crops, wheat rust in highland areas, and locust swarms in eastern regions. Average pest incidence rates typically range from 5-15% depending on the region and crop type.`
+      }
     }
 
+    // Handle weather queries with real data
     if (query.includes("weather") || query.includes("rain") || query.includes("temperature")) {
-      return `Weather analysis for ${currentYear} shows Ethiopia's diverse climate patterns. Annual rainfall varies from 200mm in eastern lowlands to over 2000mm in southwestern highlands. Temperature ranges from 15°C in highlands to 35°C in lowland areas. The main rainy season (kiremt) from June-September provides 70-80% of annual precipitation. Climate variability significantly impacts agricultural productivity across different ${activeMapLevel}s.`
+      if (dbData && dbData.length > 0) {
+        const avgMaxTemp = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.avg_annual_max_temperature_c) || 0), 0) / dbData.length
+        const avgMinTemp = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.avg_annual_min_temperature_c) || 0), 0) / dbData.length
+        const avgPrecipitation = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.avg_annual_precipitation_mm_day) || 0), 0) / dbData.length
+        
+        const hottestRegion = dbData.reduce((max: any, item: any) => 
+          (parseFloat(item.avg_annual_max_temperature_c) || 0) > (parseFloat(max.avg_annual_max_temperature_c) || 0) ? item : max, dbData[0])
+        
+        const wettestRegion = dbData.reduce((max: any, item: any) => 
+          (parseFloat(item.avg_annual_precipitation_mm_day) || 0) > (parseFloat(max.avg_annual_precipitation_mm_day) || 0) ? item : max, dbData[0])
+
+        return `**Weather Analysis for ${currentYear}:**
+
+🌡️ **Temperature Patterns:**
+• Average maximum: ${avgMaxTemp.toFixed(1)}°C
+• Average minimum: ${avgMinTemp.toFixed(1)}°C
+• Hottest region: ${hottestRegion.adm1_en} (${parseFloat(hottestRegion.avg_annual_max_temperature_c).toFixed(1)}°C)
+
+🌧️ **Precipitation Patterns:**
+• Average rainfall: ${avgPrecipitation.toFixed(1)} mm/day
+• Wettest region: ${wettestRegion.adm1_en} (${parseFloat(wettestRegion.avg_annual_precipitation_mm_day).toFixed(1)} mm/day)
+
+🌾 **Agricultural Impact:**
+• Climate diversity supports varied crop production
+• Regional variations create different growing conditions
+• Weather patterns directly influence crop yields and pest pressure`
+      } else {
+        return `Weather analysis for ${currentYear} shows Ethiopia's diverse climate patterns. Annual rainfall varies from 200mm in eastern lowlands to over 2000mm in southwestern highlands. Temperature ranges from 15°C in highlands to 35°C in lowland areas. The main rainy season (kiremt) from June-September provides 70-80% of annual precipitation.`
+      }
+    }
+
+    // Handle land use queries with real data
+    if (query.includes("land") || query.includes("agricultural") || query.includes("farming")) {
+      if (dbData && dbData.length > 0) {
+        const totalAgriLand = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.total_agri_land) || 0), 0)
+        const totalPlowed = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.plowed_area) || 0), 0)
+        const totalSowed = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.sowed_land) || 0), 0)
+        const totalHarvested = dbData.reduce((sum: number, item: any) => sum + (parseFloat(item.harvested_land) || 0), 0)
+        
+        const largestAgriRegion = dbData.reduce((max: any, item: any) => 
+          (parseFloat(item.total_agri_land) || 0) > (parseFloat(max.total_agri_land) || 0) ? item : max, dbData[0])
+
+        return `**Land Use Analysis for ${currentYear}:**
+
+🌾 **Agricultural Land Statistics:**
+• Total agricultural land: ${totalAgriLand.toLocaleString()} hectares
+• Plowed area: ${totalPlowed.toLocaleString()} hectares
+• Sowed land: ${totalSowed.toLocaleString()} hectares  
+• Harvested land: ${totalHarvested.toLocaleString()} hectares
+
+📊 **Efficiency Metrics:**
+• Land utilization rate: ${((totalSowed/totalAgriLand)*100).toFixed(1)}%
+• Harvest success rate: ${((totalHarvested/totalSowed)*100).toFixed(1)}%
+
+🏆 **Largest Agricultural Region:**
+• ${largestAgriRegion.adm1_en}: ${parseFloat(largestAgriRegion.total_agri_land).toLocaleString()} hectares
+
+💡 **Insights:**
+• ${dbData.length} regions contribute to Ethiopia's agricultural sector
+• Land use efficiency varies significantly across regions`
+      } else {
+        return `Land use analysis shows Ethiopia has significant agricultural potential. The country's diverse topography supports various farming systems, from highland cereals to lowland pastoralism. Agricultural land utilization and efficiency vary considerably across different regions.`
+      }
     }
 
     if (query.includes("region") || query.includes("zone") || query.includes("compare")) {
-      return `Regional comparison analysis shows significant agricultural diversity across Ethiopia. Oromia region leads in crop production volume, while SNNP shows high productivity per hectare. Amhara region has the largest cultivated area. Each region faces unique challenges: drought in eastern areas, soil degradation in highlands, and market access issues in remote zones. I can provide detailed comparisons for specific metrics.`
+      if (dbData && dbData.length > 0) {
+        const regionCount = dbData.length
+        const sampleRegions = dbData.slice(0, 3).map((item: any) => item.adm1_en || item.name).join(", ")
+        
+        return `**Regional Analysis for ${currentYear}:**
+
+🗺️ **Coverage:**
+• Analyzing ${regionCount} regions/zones
+• Sample regions: ${sampleRegions}${regionCount > 3 ? ` and ${regionCount - 3} more` : ''}
+
+📊 **Regional Diversity:**
+• Each region shows unique agricultural characteristics
+• Production patterns vary based on climate and topography
+• Different regions specialize in different crops
+
+🔍 **Available Comparisons:**
+• Crop production by region
+• Land use efficiency
+• Weather patterns
+• Pest pressure levels
+
+Ask me to "compare crop production between regions" for detailed analysis!`
+      } else {
+        return `Regional comparison analysis shows significant agricultural diversity across Ethiopia. Oromia region typically leads in crop production volume, while SNNP shows high productivity per hectare. Amhara region has large cultivated areas. Each region faces unique challenges: drought in eastern areas, soil degradation in highlands, and market access issues in remote zones.`
+      }
     }
 
     if (query.includes("challenge") || query.includes("problem")) {
       return `Major agricultural challenges in Ethiopia include: 1) Climate variability and drought affecting 60% of farming areas, 2) Soil degradation reducing yields by 10-20%, 3) Pest and disease pressure causing 15-25% crop losses, 4) Limited access to improved seeds and fertilizers, 5) Market access and price volatility. The Ministry is implementing various programs to address these challenges through technology adoption and infrastructure development.`
     }
 
-    return `I understand you're asking about "${userQuery}". Based on the current ${activeMapLevel}-level data for ${currentYear}, I can help analyze various agricultural aspects. The active data layers include ${activeDataLayers.length > 0 ? activeDataLayers.join(", ") : "administrative boundaries"}. Could you be more specific about what agricultural data or trends you'd like me to analyze?`
+    // Default response with context
+    return `I understand you're asking about "${userQuery}". Based on the current ${activeMapLevel}-level data for ${currentYear}, I can help analyze various agricultural aspects. 
+
+**Currently Active:** ${activeDataLayers.length > 0 ? activeDataLayers.join(", ") : "Administrative boundaries"}
+
+**I can help with:**
+• Crop production analysis and trends
+• Weather and climate impact assessment  
+• Land use and agricultural efficiency
+• Pest management and crop protection
+• Regional comparisons and insights
+
+Try asking more specific questions like:
+• "What crops are most productive in ${currentYear}?"
+• "Which regions have the highest pest problems?"
+• "Compare weather patterns across regions"`
   }
 
   const handleSendMessage = async () => {
@@ -182,6 +386,39 @@ export function AIAssistant({
     }
   }
 
+  // Suggested queries based on active data layers
+  const getSuggestedQueries = () => {
+    const queries = []
+    
+    if (activeDataLayers.includes("Crop Production")) {
+      queries.push("What are the top crop producing regions?")
+      queries.push("Compare teff and maize production")
+    }
+    
+    if (activeDataLayers.includes("Weather Data")) {
+      queries.push("Which regions have the best rainfall?")
+      queries.push("How does temperature affect crop yields?")
+    }
+    
+    if (activeDataLayers.includes("Pest Data")) {
+      queries.push("Which regions have highest pest problems?")
+      queries.push("What are the main pest control costs?")
+    }
+    
+    if (activeDataLayers.includes("Land Data")) {
+      queries.push("Which regions use land most efficiently?")
+      queries.push("Compare agricultural land across regions")
+    }
+    
+    if (queries.length === 0) {
+      queries.push("What crops are grown in Ethiopia?")
+      queries.push("Tell me about Ethiopian agriculture")
+      queries.push("What are the main agricultural challenges?")
+    }
+    
+    return queries.slice(0, 3)
+  }
+
   return (
     <Card className={`flex flex-col h-full ${className}`}>
       <CardHeader className="pb-2 p-2">
@@ -224,7 +461,7 @@ export function AIAssistant({
                     </span>
                   </div>
                   <div
-                    className={`p-1.5 rounded-lg text-xs ${
+                    className={`p-1.5 rounded-lg text-xs whitespace-pre-wrap ${
                       message.role === "user"
                         ? "bg-primary text-primary-foreground ml-auto"
                         : message.type === "alert"
@@ -254,33 +491,33 @@ export function AIAssistant({
             )}
           </div>
         </ScrollArea>
-{/* 
+
         {messages.length <= 1 && (
-          // <div className="space-y-1.5">
-          //   <Separator />
-          //   <div className="text-xs font-medium text-muted-foreground">Suggested Questions:</div>
-          //   <div className="grid grid-cols-1 gap-0.5">
-          //     {suggestedQueries.slice(0, 3).map((query, index) => (
-          //       <Button
-          //         key={index}
-          //         variant="ghost"
-          //         size="sm"
-          //         className="h-auto p-1.5 text-xs text-left justify-start hover:bg-muted/50"
-          //         onClick={() => handleSuggestedQuery(query)}
-          //       >
-          //         {query}
-          //       </Button>
-          //     ))}
-          //   </div>
-          // </div>
-        )} */}
+          <div className="space-y-1.5">
+            <Separator />
+            <div className="text-xs font-medium text-muted-foreground">Suggested Questions:</div>
+            <div className="grid grid-cols-1 gap-0.5">
+              {getSuggestedQueries().map((query, index) => (
+                <Button
+                  key={index}
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto p-1.5 text-xs text-left justify-start hover:bg-muted/50"
+                  onClick={() => handleSuggestedQuery(query)}
+                >
+                  {query}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex space-x-1.5">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            // placeholder="Ask about crops, weather, pests, or land use..."
+            placeholder="Ask about crops, weather, pests, or land use..."
             className="text-xs h-7"
             disabled={isLoading}
           />

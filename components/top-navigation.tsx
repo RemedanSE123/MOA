@@ -37,30 +37,30 @@ export function TopNavigation({ title = "Agricultural Data Portal", subtitle }: 
   }, [])
 
   return (
-    <header className="h-16 bg-gradient-to-r from-card via-card to-card/95 border-b border-border/50 flex items-center justify-between px-6 shadow-sm backdrop-blur-sm">
+    <header className="h-14 md:h-16 bg-gradient-to-r from-card via-card to-card/95 border-b border-border/50 flex items-center justify-between px-4 md:px-6 shadow-sm backdrop-blur-sm">
 
       {/* Left Section - Branding */}
       <div className="flex items-center space-x-4">
         <Image 
           src="/moe.webp"
           alt="Logo"
-          width={40}
-          height={40}
+          width={32}
+          height={32}
           className="rounded-none"
         />
         <div>
-          <h1 className="text-xl font-bold text-foreground tracking-tight">{title}</h1>
+          <h1 className="text-lg md:text-xl font-bold text-foreground tracking-tight">{title}</h1>
           {subtitle && (
-            <p className="text-sm text-muted-foreground flex items-center space-x-2">
+            <p className="text-xs md:text-sm text-muted-foreground flex items-center space-x-2">
               <Shield className="h-3 w-3" />
-              <span>{subtitle}</span>
+              <span className="hidden sm:inline">{subtitle}</span>
             </p>
           )}
         </div>
       </div>
 
       {/* Center Section - Search */}
-      <div className="flex-1 max-w-md mx-8">
+      <div className="flex-1 max-w-md mx-4 md:mx-8 hidden md:block">
         <div className="relative">
           <Input
             placeholder="Search regions, crops, weather data..."
@@ -70,23 +70,20 @@ export function TopNavigation({ title = "Agricultural Data Portal", subtitle }: 
       </div>
 
       {/* Right Section - Date & Language */}
-      <div className="flex items-center space-x-6">
+      <div className="flex items-center space-x-2 md:space-x-6">
 
-  {/* Date/Time Panel */}
-  <div className="flex flex-col items-center justify-center text-xs font-medium text-black-500">
-    <div>{dateStr}</div>
-    <div className="mt-0.5 font-mono">{timeStr}</div>
-  </div>
+        {/* Date/Time Panel */}
+        <div className="hidden md:flex flex-col items-center justify-center text-xs font-medium text-black-500">
+          <div>{dateStr}</div>
+          <div className="mt-0.5 font-mono">{timeStr}</div>
+        </div>
 
-
-
-
-  {/* Home Button */}
-  <a href="https://kukunetdigital.com/" className="flex items-center text-muted-foreground hover:text-foreground hover:bg-muted/50 px-2 py-1 rounded transition-all duration-200">
-    <Home className="h-4 w-4 mr-2" />
-   
-  </a>
-</div>
+        {/* Mobile Date/Time */}
+        <div className="md:hidden text-xs font-medium text-black-500">
+          <div className="font-mono">{timeStr}</div>
+        </div>
+      
+      </div>
     </header>
   )
 }

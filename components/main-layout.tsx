@@ -79,24 +79,24 @@ export function MainLayout({
 
   return (
     <MapSelectionContext.Provider value={mapSelectionValue}>
-      <div className="h-screen flex flex-col bg-background">
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
         {/* Top Navigation */}
         <TopNavigation title={title} subtitle={subtitle} />
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar - Reduced width from w-80 to w-72 for 80% zoom optimization */}
+          {/* Sidebar - Responsive width */}
           <SidebarNavigation
             activeItem={activeItem}
             onItemSelect={handleItemSelect}
             weatherControlsProps={weatherControlsProps}
             agriculturalControlsProps={agriculturalControlsProps}
             layerControlsProps={layerControlsProps} // Pass layer controls props to sidebar
-            className="w-72"
+            className="flex-shrink-0"
           />
 
           {/* Main Content */}
-          <main className="flex-1 overflow-auto bg-muted/30">
+          <main className="flex-1 overflow-auto bg-muted/30 min-w-0">
             <div className="h-full">{children}</div>
           </main>
         </div>

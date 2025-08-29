@@ -387,17 +387,13 @@ export function EthiopiaMap({
           return "#e5e7eb"
         }
 
-        const colors: string[] = []
-        for (let i = 0; i < colorRanges; i++) {
-          const intensity = i / (colorRanges - 1)
-          const r = Math.round(255 - (255 - baseRgb.r) * intensity)
-          const g = Math.round(255 - (255 - baseRgb.g) * intensity)
-          const b = Math.round(255 - (255 - baseRgb.b) * intensity)
-          colors.push(`rgb(${r},${g},${b})`)
-        }
-
-        const colorIndex = Math.floor(factor * (colorRanges - 1))
-        const finalColor = colors[colorIndex]
+        // Generate color based on factor and colorRanges
+        const colorIndex = Math.min(Math.floor(factor * colorRanges), colorRanges - 1)
+        const intensity = colorIndex / (colorRanges - 1)
+        const r = Math.round(255 - (255 - baseRgb.r) * intensity)
+        const g = Math.round(255 - (255 - baseRgb.g) * intensity)
+        const b = Math.round(255 - (255 - baseRgb.b) * intensity)
+        const finalColor = `rgb(${r},${g},${b})`
         console.log(" Final agricultural color:", finalColor, "for feature:", feature.name)
 
         return finalColor
@@ -458,17 +454,13 @@ export function EthiopiaMap({
         return "#e5e7eb"
       }
 
-      const colors: string[] = []
-      for (let i = 0; i < colorRanges; i++) {
-        const intensity = i / (colorRanges - 1)
-        const r = Math.round(255 - (255 - baseRgb.r) * intensity)
-        const g = Math.round(255 - (255 - baseRgb.g) * intensity)
-        const b = Math.round(255 - (255 - baseRgb.b) * intensity)
-        colors.push(`rgb(${r},${g},${b})`)
-      }
-
-      const colorIndex = Math.floor(factor * (colorRanges - 1))
-      const finalColor = colors[colorIndex]
+      // Generate color based on factor and colorRanges
+      const colorIndex = Math.min(Math.floor(factor * colorRanges), colorRanges - 1)
+      const intensity = colorIndex / (colorRanges - 1)
+      const r = Math.round(255 - (255 - baseRgb.r) * intensity)
+      const g = Math.round(255 - (255 - baseRgb.g) * intensity)
+      const b = Math.round(255 - (255 - baseRgb.b) * intensity)
+      const finalColor = `rgb(${r},${g},${b})`
       console.log(" Final color:", finalColor, "for feature:", feature.name)
 
       return finalColor
@@ -578,9 +570,10 @@ export function EthiopiaMap({
 
   const title = getLegendTitle()
   const { min, max } = minMax
-  const step = (max - min) / colorRanges
-  const legendColors: string[] = []
+  
+  // Generate legend colors based on colorRanges
   const baseRgb = hexToRgb(baseColor)
+  const legendColors: string[] = []
   if (baseRgb) {
     for (let i = 0; i < colorRanges; i++) {
       const intensity = i / (colorRanges - 1)
@@ -590,47 +583,49 @@ export function EthiopiaMap({
       legendColors.push(`rgb(${r},${g},${b})`)
     }
   }
+  
+  const step = (max - min) / colorRanges
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative w-full h-full" ref={containerRef}>
       {/* Map Controls */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col space-y-2">
+      <div className="absolute top-2 right-2 md:top-4 md:right-4 z-10 flex flex-col space-y-1 md:space-y-2">
         <Button
           onClick={() => handleZoom(0.2)}
-          size="sm"
+          size="icon"
           variant="outline"
-          className="bg-white shadow-md hover:bg-gray-50"
+          className="bg-white shadow-md hover:bg-gray-50 h-8 w-8 md:h-10 md:w-10"
         >
-          <ZoomIn className="h-4 w-4" />
+          <ZoomIn className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
         <Button
           onClick={() => handleZoom(-0.2)}
-          size="sm"
+          size="icon"
           variant="outline"
-          className="bg-white shadow-md hover:bg-gray-50"
+          className="bg-white shadow-md hover:bg-gray-50 h-8 w-8 md:h-10 md:w-10"
         >
-          <ZoomOut className="h-4 w-4" />
+          <ZoomOut className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
-        <Button onClick={resetView} size="sm" variant="outline" className="bg-white shadow-md hover:bg-gray-50">
-          <RotateCcw className="h-4 w-4" />
+        <Button onClick={resetView} size="icon" variant="outline" className="bg-white shadow-md hover:bg-gray-50 h-8 w-8 md:h-10 md:w-10">
+          <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
       </div>
 
       {((activeLayer === "weather" && !showPrecipitationIcons) || activeDataLayer) &&
         legendColors.length > 0 &&
         minMax.min !== minMax.max && (
-          <div className="absolute bottom-4 right-4 z-10 bg-white rounded shadow p-2 text-sm">
-            <div className="font-medium mb-1 flex items-center space-x-2">
+          <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 z-10 bg-white rounded shadow p-2 text-xs md:text-sm max-w-[200px] md:max-w-none">
+            <div className="font-medium mb-1 flex items-center space-x-1 md:space-x-2">
               {getLegendIcon()}
-              <span>{title}</span>
+              <span className="truncate">{title}</span>
             </div>
             {legendColors.map((color, i) => {
               const low = min + i * step
               const high = i === colorRanges - 1 ? max : min + (i + 1) * step
               return (
-                <div key={i} className="flex items-center space-x-2">
-                  <div style={{ width: "20px", height: "20px", backgroundColor: color }} />
-                  <span>
+                <div key={i} className="flex items-center space-x-1 md:space-x-2">
+                  <div style={{ width: "16px", height: "16px", backgroundColor: color }} className="md:w-5 md:h-5" />
+                  <span className="text-xs">
                     {low.toFixed(1)} - {high.toFixed(1)}
                   </span>
                 </div>
@@ -640,9 +635,9 @@ export function EthiopiaMap({
         )}
 
       {showStations && stations.length > 0 && (
-        <div className="absolute bottom-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
+        <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 z-10 bg-white rounded-lg shadow-lg p-2 md:p-4 max-w-xs">
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 md:space-x-2">
               <div className="w-3 h-3 bg-green-600 rounded-full"></div>
               <span className="text-xs">Weather Station</span>
             </div>
@@ -652,9 +647,9 @@ export function EthiopiaMap({
       )}
 
       {showAgricultureLands && agricultureLands.length > 0 && (
-        <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-4 max-w-xs">
+        <div className="absolute top-2 left-2 md:top-4 md:left-4 z-10 bg-white rounded-lg shadow-lg p-2 md:p-4 max-w-xs">
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 md:space-x-2">
               <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
               <span className="text-xs">Agriculture Lands</span>
             </div>
@@ -666,7 +661,7 @@ export function EthiopiaMap({
       {/* Map Container */}
       <div
         className="relative overflow-hidden rounded-lg border bg-gradient-to-br from-blue-50 to-green-50"
-        style={{ height: "500px", cursor: isDragging ? "grabbing" : "grab" }}
+        style={{ height: "400px", cursor: isDragging ? "grabbing" : "grab" }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -827,7 +822,7 @@ export function EthiopiaMap({
               const isHovered = hoveredStation === station.gid
 
               return (
-                <g key={station.gid}>
+                <g key={station.id}>
                   <circle
                     cx={point.x}
                     cy={point.y}
