@@ -386,38 +386,6 @@ Try asking more specific questions like:
     }
   }
 
-  // Suggested queries based on active data layers
-  const getSuggestedQueries = () => {
-    const queries = []
-    
-    if (activeDataLayers.includes("Crop Production")) {
-      queries.push("What are the top crop producing regions?")
-      queries.push("Compare teff and maize production")
-    }
-    
-    if (activeDataLayers.includes("Weather Data")) {
-      queries.push("Which regions have the best rainfall?")
-      queries.push("How does temperature affect crop yields?")
-    }
-    
-    if (activeDataLayers.includes("Pest Data")) {
-      queries.push("Which regions have highest pest problems?")
-      queries.push("What are the main pest control costs?")
-    }
-    
-    if (activeDataLayers.includes("Land Data")) {
-      queries.push("Which regions use land most efficiently?")
-      queries.push("Compare agricultural land across regions")
-    }
-    
-    if (queries.length === 0) {
-      queries.push("What crops are grown in Ethiopia?")
-      queries.push("Tell me about Ethiopian agriculture")
-      queries.push("What are the main agricultural challenges?")
-    }
-    
-    return queries.slice(0, 3)
-  }
 
   return (
     <Card className={`flex flex-col h-full ${className}`}>
@@ -492,25 +460,7 @@ Try asking more specific questions like:
           </div>
         </ScrollArea>
 
-        {messages.length <= 1 && (
-          <div className="space-y-1.5">
-            <Separator />
-            <div className="text-xs font-medium text-muted-foreground">Suggested Questions:</div>
-            <div className="grid grid-cols-1 gap-0.5">
-              {getSuggestedQueries().map((query, index) => (
-                <Button
-                  key={index}
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto p-1.5 text-xs text-left justify-start hover:bg-muted/50"
-                  onClick={() => handleSuggestedQuery(query)}
-                >
-                  {query}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
+        
 
         <div className="flex space-x-1.5">
           <Input

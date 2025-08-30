@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ZoomIn, ZoomOut, RotateCcw, MapPin, CloudRain, Wheat, Sprout, BarChart3, Bug } from "lucide-react"
+import { ZoomIn, ZoomOut, RotateCcw, CloudRain, Sprout, BarChart3, Bug, MapPin } from "lucide-react"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -31,6 +31,7 @@ interface WeatherData {
   adm1_en: string
   adm1_pcode: string
   adm2_pcode?: string // Added adm2_pcode field for zone data
+  adm3_pcode?: string // Added adm3_pcode field for woreda data
   year: number
   avg_annual_precipitation_mm_day: number
   avg_annual_max_temperature_c: number
@@ -39,6 +40,7 @@ interface WeatherData {
 
 interface Station {
   gid: number
+   id?: number // Add this if needed
   adm1_en: string
   adm1_pcode: string
   longitude: number
@@ -344,64 +346,82 @@ export function EthiopiaMap({
     return { min: 0, max: 0 }
   }, [weatherData, parameterKey, parseNumericValue, activeLayer, activeDataLayer])
 
-  // Get feature color based on weather data
   const getFeatureColor = useCallback(
     (feature: MapFeature) => {
-      console.log(" Getting color for feature:", feature.name, "code:", feature.code)
+      console.log("[v0] Getting color for feature:", feature.name, "code:", feature.code, "level:", feature.level)
 
-      // Handle agricultural data layers
+      // Handle agricultural data layers with proper administrative level matching
       if (activeDataLayer) {
-        console.log(" Using agricultural data layer:", activeDataLayer.type)
+        console.log("[v0] Using agricultural data layer:", activeDataLayer.type, "for level:", activeMapLevel)
 
-        const dataInfo = activeDataLayer.data.find((data) => data.adm1_pcode === feature.code)
-        console.log(" Found agricultural data:", dataInfo)
+        let dataInfo: any = null
+
+        // Match data based on administrative level
+        if (activeMapLevel === "region") {
+          dataInfo = activeDataLayer.data.find((data) => data.adm1_pcode === feature.code)
+        } else if (activeMapLevel === "zone") {
+          dataInfo = activeDataLayer.data.find((data) => data.adm2_pcode === feature.code)
+        } else if (activeMapLevel === "woreda") {
+          dataInfo = activeDataLayer.data.find((data) => data.adm3_pcode === feature.code)
+        }
+
+        console.log("[v0] Found agricultural data:", dataInfo)
 
         if (!dataInfo) {
-          console.log(" No agricultural data found, returning default color")
+          console.log("[v0] No agricultural data found, returning default color")
           return "#e5e7eb"
         }
 
         const rawValue = dataInfo[activeDataLayer.parameter]
         const value = parseNumericValue(rawValue)
-        console.log(" Raw agricultural value:", rawValue, "Parsed value:", value)
+        console.log("[v0] Raw agricultural value:", rawValue, "Parsed value:", value)
 
         if (value == null) {
-          console.log(" Invalid agricultural value, returning default color")
+          console.log("[v0] Invalid agricultural value, returning default color")
           return "#e5e7eb"
         }
 
         const { min, max } = minMax
-        console.log(" Agricultural Min/Max values:", min, max)
+        console.log("[v0] Agricultural Min/Max values:", min, max)
 
         if (min === max) {
-          console.log(" Min equals max, returning base color")
+          console.log("[v0] Min equals max, returning base color")
           return baseColor
         }
 
-        const factor = (value - min) / (max - min)
-        console.log(" Agricultural color factor:", factor)
+        const factor = Math.max(0, Math.min(1, (value - min) / (max - min)))
+        console.log("[v0] Agricultural color factor:", factor)
 
         const baseRgb = hexToRgb(baseColor)
         if (!baseRgb) {
-          console.log(" Invalid base color, returning default")
+          console.log("[v0] Invalid base color, returning default")
           return "#e5e7eb"
         }
 
-        // Generate color based on factor and colorRanges
+        // Generate color based on factor and colorRanges - fixed color range application
         const colorIndex = Math.min(Math.floor(factor * colorRanges), colorRanges - 1)
-        const intensity = colorIndex / (colorRanges - 1)
+        const intensity = colorIndex / Math.max(1, colorRanges - 1)
         const r = Math.round(255 - (255 - baseRgb.r) * intensity)
         const g = Math.round(255 - (255 - baseRgb.g) * intensity)
         const b = Math.round(255 - (255 - baseRgb.b) * intensity)
         const finalColor = `rgb(${r},${g},${b})`
-        console.log(" Final agricultural color:", finalColor, "for feature:", feature.name)
+        console.log(
+          "[v0] Final agricultural color:",
+          finalColor,
+          "for feature:",
+          feature.name,
+          "intensity:",
+          intensity,
+          "colorIndex:",
+          colorIndex,
+        )
 
         return finalColor
       }
 
-      // Handle weather data (existing logic)
+      // Handle weather data with proper administrative level matching
       if (activeLayer !== "weather" || !parameterKey) {
-        console.log(" Returning default color - activeLayer or parameterKey missing")
+        console.log("[v0] Returning default color - activeLayer or parameterKey missing")
         return "#e5e7eb"
       }
 
@@ -412,56 +432,66 @@ export function EthiopiaMap({
       let weatherInfo: WeatherData | undefined
 
       if (activeMapLevel === "region") {
-        // For regions, match adm1_pcode with feature.code
         weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
-        console.log(" Looking for region weather data with code:", feature.code)
+        console.log("[v0] Looking for region weather data with code:", feature.code)
       } else if (activeMapLevel === "zone") {
-        // For zones, match adm2_pcode with feature.code
         weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
-        console.log(" Looking for zone weather data with code:", feature.code)
+        console.log("[v0] Looking for zone weather data with code:", feature.code)
+      } else if (activeMapLevel === "woreda") {
+        weatherInfo = weatherData.find((data) => data.adm3_pcode === feature.code)
+        console.log("[v0] Looking for woreda weather data with code:", feature.code)
       }
 
-      console.log(" Found weather info:", weatherInfo)
+      console.log("[v0] Found weather info:", weatherInfo)
 
       if (!weatherInfo) {
-        console.log(" No weather info found, returning default color")
+        console.log("[v0] No weather info found, returning default color")
         return "#e5e7eb"
       }
 
       const rawValue = weatherInfo[parameterKey as keyof WeatherData]
       const value = parseNumericValue(rawValue)
-      console.log(" Raw weather value:", rawValue, "Parsed value:", value, "for parameter:", parameterKey)
+      console.log("[v0] Raw weather value:", rawValue, "Parsed value:", value, "for parameter:", parameterKey)
 
       if (value == null) {
-        console.log(" Invalid value after parsing, returning default color")
+        console.log("[v0] Invalid value after parsing, returning default color")
         return "#e5e7eb"
       }
 
       const { min, max } = minMax
-      console.log(" Min/Max values:", min, max)
+      console.log("[v0] Weather Min/Max values:", min, max)
 
       if (min === max) {
-        console.log(" Min equals max, returning base color")
+        console.log("[v0] Min equals max, returning base color")
         return baseColor
       }
 
-      const factor = (value - min) / (max - min)
-      console.log(" Color factor:", factor)
+      const factor = Math.max(0, Math.min(1, (value - min) / (max - min)))
+      console.log("[v0] Weather color factor:", factor)
 
       const baseRgb = hexToRgb(baseColor)
       if (!baseRgb) {
-        console.log(" Invalid base color, returning default")
+        console.log("[v0] Invalid base color, returning default")
         return "#e5e7eb"
       }
 
-      // Generate color based on factor and colorRanges
+      // Generate color based on factor and colorRanges - fixed color range application
       const colorIndex = Math.min(Math.floor(factor * colorRanges), colorRanges - 1)
-      const intensity = colorIndex / (colorRanges - 1)
+      const intensity = colorIndex / Math.max(1, colorRanges - 1)
       const r = Math.round(255 - (255 - baseRgb.r) * intensity)
       const g = Math.round(255 - (255 - baseRgb.g) * intensity)
       const b = Math.round(255 - (255 - baseRgb.b) * intensity)
       const finalColor = `rgb(${r},${g},${b})`
-      console.log(" Final color:", finalColor, "for feature:", feature.name)
+      console.log(
+        "[v0] Final weather color:",
+        finalColor,
+        "for feature:",
+        feature.name,
+        "intensity:",
+        intensity,
+        "colorIndex:",
+        colorIndex,
+      )
 
       return finalColor
     },
@@ -484,9 +514,14 @@ export function EthiopiaMap({
     (feature: MapFeature) => {
       if (weatherParameter !== "precipitation" || !showPrecipitationIcons) return 0
 
-      const weatherInfo = weatherData.find((data) =>
-        activeMapLevel === "region" ? data.adm1_pcode === feature.code : data.adm2_pcode === feature.code,
-      )
+      let weatherInfo: WeatherData | undefined
+      if (activeMapLevel === "region") {
+        weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
+      } else if (activeMapLevel === "zone") {
+        weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
+      } else if (activeMapLevel === "woreda") {
+        weatherInfo = weatherData.find((data) => data.adm3_pcode === feature.code)
+      }
 
       if (!weatherInfo) return 0
 
@@ -502,13 +537,156 @@ export function EthiopiaMap({
     [weatherData, weatherParameter, showPrecipitationIcons, activeMapLevel, parseNumericValue, minMax],
   )
 
-  const getFeatureStroke = (feature: MapFeature) => {
-    const isSelected =
-      (feature.level === "region" && feature.code === selectedRegion) ||
-      (feature.level === "zone" && feature.code === selectedZone) ||
-      (feature.level === "woreda" && feature.code === selectedWoreda)
+  const handleFeatureInteraction = useCallback((feature: MapFeature, isEntering: boolean) => {
+    if (isEntering) {
+      setHoveredFeature(feature.code)
+      setHoveredStation(null)
+      setHoveredLand(null)
+    } else {
+      setHoveredFeature(null)
+    }
+  }, [])
 
-    return isSelected ? "#ffffff" : "#9ca3af"
+  const handleFeatureClick = useCallback(
+    (feature: MapFeature) => {
+      if (feature.level === "region" && onRegionSelect) {
+        onRegionSelect(feature.code)
+      } else if (feature.level === "zone" && onZoneSelect) {
+        onZoneSelect(feature.code)
+      } else if (feature.level === "woreda" && onWoredaSelect) {
+        onWoredaSelect(feature.code)
+      }
+    },
+    [onRegionSelect, onZoneSelect, onWoredaSelect],
+  )
+
+  const getFeatureStroke = useCallback(
+    (feature: MapFeature) => {
+      const isSelected =
+        (feature.level === "region" && feature.code === selectedRegion) ||
+        (feature.level === "zone" && feature.code === selectedZone) ||
+        (feature.level === "woreda" && feature.code === selectedWoreda)
+
+      const isHovered = hoveredFeature === feature.code
+
+      if (isSelected) return "#ffffff"
+      if (isHovered) return "#3b82f6" // Blue highlight on hover
+      return "#9ca3af"
+    },
+    [selectedRegion, selectedZone, selectedWoreda, hoveredFeature],
+  )
+
+  const getFeatureStrokeWidth = useCallback(
+    (feature: MapFeature) => {
+      const isSelected =
+        (feature.level === "region" && feature.code === selectedRegion) ||
+        (feature.level === "zone" && feature.code === selectedZone) ||
+        (feature.level === "woreda" && feature.code === selectedWoreda)
+
+      const isHovered = hoveredFeature === feature.code
+
+      if (isSelected) return "3"
+      if (isHovered) return "2"
+      return "1"
+    },
+    [selectedRegion, selectedZone, selectedWoreda, hoveredFeature],
+  )
+
+  const getSafeTooltipPosition = useCallback(
+    (centerPoint: { x: number; y: number }, tooltipWidth = 250, tooltipHeight = 150) => {
+      // Validate centerPoint values and provide fallbacks
+      const safeX = isNaN(centerPoint.x) || !isFinite(centerPoint.x) ? mapWidth / 2 : centerPoint.x
+      const safeY = isNaN(centerPoint.y) || !isFinite(centerPoint.y) ? mapHeight / 2 : centerPoint.y
+
+      return {
+        x: Math.max(0, Math.min(safeX + 10, mapWidth - tooltipWidth)),
+        y: Math.max(0, Math.min(safeY - 75, mapHeight - tooltipHeight)),
+      }
+    },
+    [mapWidth, mapHeight],
+  )
+
+  const getAllParametersForFeature = useCallback(
+    (feature: any, activeLayer: any) => {
+      if (!activeLayer || !activeLayer.data) return null;
+      const featureData = activeLayer.data.find((item: any) => {
+        if (activeMapLevel === "region") return item.adm1_en === feature.name
+        if (activeMapLevel === "zone") return item.adm2_en === feature.name
+        if (activeMapLevel === "woreda") return item.adm3_en === feature.name
+        return false
+      })
+
+      if (!featureData) return null
+
+      // Return all relevant parameters based on layer type
+      if (activeLayer.type === "land") {
+        return {
+          total_agri_land: featureData.total_agri_land,
+          plowed_area: featureData.plowed_area,
+          sowed_land: featureData.sowed_land,
+          harvested_land: featureData.harvested_land,
+        }
+      } else if (activeLayer.type === "crop") {
+        return {
+          teff_production_mt: featureData.teff_production_mt,
+          wheat_production_mt: featureData.wheat_production_mt,
+          barley_production_mt: featureData.barley_production_mt,
+          maize_production_mt: featureData.maize_production_mt,
+        }
+      } else if (activeLayer.type === "pest") {
+        return {
+          pest_incidence: featureData.pest_incidence,
+          affected_area_ha: featureData.affected_area_ha,
+          crop_loss_tons: featureData.crop_loss_tons,
+          pest_control_cost_etb: featureData.pest_control_cost_etb,
+        }
+      }
+      return null
+    },
+    [activeMapLevel],
+  )
+
+  const formatParameterName = useCallback((param: string) => {
+    const names: { [key: string]: string } = {
+      total_agri_land: "Total Agricultural Land",
+      plowed: "Plowed Area",
+      sowed: "Sowed Area",
+      harvested: "Harvested Area",
+      teff_production_mt: "Teff Production",
+      wheat_production_mt: "Wheat Production",
+      barley_production_mt: "Barley Production",
+      maize_production_mt: "Maize Production",
+      pest_incidence: "Pest Incidence",
+      affected_area_ha: "Affected Area",
+      severity_level: "Severity Level",
+    }
+    return names[param] || param.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+  }, [])
+
+  const formatParameterValue = useCallback((value: any, param: string) => {
+    if (value === null || value === undefined) return "N/A"
+    if (typeof value === "number") {
+      if (param.includes("_ha") || param.includes("_land")) return `${value.toLocaleString()} ha`
+      if (param.includes("_mt")) return `${value.toLocaleString()} MT`
+      if (param.includes("temp")) return `${value}°C`
+      if (param.includes("precipitation")) return `${value}mm`
+      return value.toLocaleString()
+    }
+    return String(value)
+  }, [])
+
+  const legendColors: string[] = []
+  const baseRgb = hexToRgb(baseColor)
+  const step = colorRanges > 0 ? (minMax.max - minMax.min) / colorRanges : 0
+
+  if (baseRgb && colorRanges > 0) {
+    for (let i = 0; i < colorRanges; i++) {
+      const intensity = i / Math.max(1, colorRanges - 1)
+      const r = Math.round(255 - (255 - baseRgb.r) * intensity)
+      const g = Math.round(255 - (255 - baseRgb.g) * intensity)
+      const b = Math.round(255 - (255 - baseRgb.b) * intensity)
+      legendColors.push(`rgb(${r},${g},${b})`)
+    }
   }
 
   if (loading) {
@@ -570,21 +748,6 @@ export function EthiopiaMap({
 
   const title = getLegendTitle()
   const { min, max } = minMax
-  
-  // Generate legend colors based on colorRanges
-  const baseRgb = hexToRgb(baseColor)
-  const legendColors: string[] = []
-  if (baseRgb) {
-    for (let i = 0; i < colorRanges; i++) {
-      const intensity = i / (colorRanges - 1)
-      const r = Math.round(255 - (255 - baseRgb.r) * intensity)
-      const g = Math.round(255 - (255 - baseRgb.g) * intensity)
-      const b = Math.round(255 - (255 - baseRgb.b) * intensity)
-      legendColors.push(`rgb(${r},${g},${b})`)
-    }
-  }
-  
-  const step = (max - min) / colorRanges
 
   return (
     <div className="relative w-full h-full" ref={containerRef}>
@@ -606,14 +769,19 @@ export function EthiopiaMap({
         >
           <ZoomOut className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
-        <Button onClick={resetView} size="icon" variant="outline" className="bg-white shadow-md hover:bg-gray-50 h-8 w-8 md:h-10 md:w-10">
+        <Button
+          onClick={resetView}
+          size="icon"
+          variant="outline"
+          className="bg-white shadow-md hover:bg-gray-50 h-8 w-8 md:h-10 md:w-10"
+        >
           <RotateCcw className="h-3 w-3 md:h-4 md:w-4" />
         </Button>
       </div>
 
       {((activeLayer === "weather" && !showPrecipitationIcons) || activeDataLayer) &&
         legendColors.length > 0 &&
-        minMax.min !== minMax.max && (
+        min !== max && (
           <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 z-10 bg-white rounded shadow p-2 text-xs md:text-sm max-w-[200px] md:max-w-none">
             <div className="font-medium mb-1 flex items-center space-x-1 md:space-x-2">
               {getLegendIcon()}
@@ -658,6 +826,8 @@ export function EthiopiaMap({
         </div>
       )}
 
+
+
       {/* Map Container */}
       <div
         className="relative overflow-hidden rounded-lg border bg-gradient-to-br from-blue-50 to-green-50"
@@ -684,18 +854,21 @@ export function EthiopiaMap({
               const pathData = geometryToPath(feature.geometry)
               if (!pathData) return null
 
-              // Find weather info if exists
-              const weatherInfo = weatherData.find(
-                (data) =>
-                  activeMapLevel === "region"
-                    ? data.adm1_pcode === feature.code
-                    : activeMapLevel === "zone"
-                      ? data.adm2_pcode === feature.code
-                      : null, // woredas have no weather
-              )
+              let weatherInfo: WeatherData | undefined
+              let agriculturalInfo: any = null
 
-              // Find agricultural data if exists
-              const agriculturalInfo = activeDataLayer?.data.find((data) => data.adm1_pcode === feature.code)
+              if (activeMapLevel === "region") {
+                weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
+                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm1_pcode === feature.code)
+              } else if (activeMapLevel === "zone") {
+                weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
+                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm2_pcode === feature.code)
+              } else if (activeMapLevel === "woreda") {
+                weatherInfo = weatherData.find((data) => data.adm3_pcode === feature.code)
+                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm3_pcode === feature.code)
+              }
+
+              const isHovered = hoveredFeature === feature.code
 
               return (
                 <g key={feature.gid}>
@@ -704,15 +877,19 @@ export function EthiopiaMap({
                     d={pathData}
                     fill={getFeatureColor(feature)}
                     stroke={getFeatureStroke(feature)}
-                    strokeWidth="1"
-                    fillOpacity={layerOpacity.boundaries || 0.8}
-                    className="transition-all duration-200 cursor-pointer hover:opacity-80"
-                    onMouseEnter={() => {
-                      setHoveredFeature(feature.code)
-                      setHoveredStation(null)
-                      setHoveredLand(null)
+                    strokeWidth={getFeatureStrokeWidth(feature)}
+                    fillOpacity={isHovered ? 0.9 : layerOpacity.boundaries || 0.8}
+                    className="transition-all duration-200 cursor-pointer hover:brightness-110"
+                    style={{
+                      filter: isHovered ? "drop-shadow(0 4px 8px rgba(0,0,0,0.2))" : "none",
+                      transform: isHovered ? "scale(1.01)" : "scale(1)",
+                      transformOrigin: "center",
                     }}
-                    onMouseLeave={() => setHoveredFeature(null)}
+                    onMouseEnter={() => handleFeatureInteraction(feature, true)}
+                    onMouseLeave={() => handleFeatureInteraction(feature, false)}
+                    onClick={() => handleFeatureClick(feature)}
+                    onTouchStart={() => handleFeatureInteraction(feature, true)}
+                    onTouchEnd={() => handleFeatureInteraction(feature, false)}
                   />
 
                   {/* Precipitation Icon */}
@@ -744,7 +921,7 @@ export function EthiopiaMap({
                       )
                     })()}
 
-                  {/* Updated Tooltip */}
+                  {/* Enhanced Tooltip */}
                   {hoveredFeature === feature.code &&
                     (() => {
                       const bounds = feature.geometry?.coordinates?.[0]
@@ -761,49 +938,88 @@ export function EthiopiaMap({
                       centerLat /= bounds.length
 
                       const centerPoint = projectPoint(centerLng, centerLat)
+                      const tooltipPos = getSafeTooltipPosition(centerPoint, 280, 200)
 
                       // Determine tooltip name
                       let featureName = ""
                       if (activeMapLevel === "region") featureName = weatherInfo?.adm1_en || feature.name
-                      else if (activeMapLevel === "zone") featureName = weatherInfo?.adm1_en || feature.name
+                      else if (activeMapLevel === "zone") featureName =  feature.name
                       else if (activeMapLevel === "woreda") featureName = feature.name
+
+                      const activeLayer = getActiveDataLayer()
+                      const allParameters = activeLayer ? getAllParametersForFeature(feature, activeLayer) : null
 
                       return (
                         <foreignObject
-                          x="10"
-                          y="10"
-                          width="250"
-                          height="150"
+                          x={tooltipPos.x}
+                          y={tooltipPos.y}
+                          width="280"
+                          height="200"
                           style={{ pointerEvents: "none", zIndex: 5000 }}
                         >
-                          <div className="bg-white p-2 rounded shadow-lg text-xs border">
-                            <div className="font-semibold">{featureName}</div>
+                          <div className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-2xl text-sm border border-gray-200 animate-in fade-in-0 zoom-in-95 duration-200">
+                            <div className="font-bold text-gray-900 text-base mb-2 border-b pb-2">{featureName}</div>
 
-                            {/* Show agricultural data if available */}
-                            {agriculturalInfo && activeDataLayer && (
-                              <div className="mt-2 space-y-1">
-                                <div className="flex items-center space-x-1">
-                                  {getLegendIcon()}
-                                  <span className="font-medium text-gray-700">
-                                    {activeDataLayer.type.charAt(0).toUpperCase() + activeDataLayer.type.slice(1)} Data:
-                                  </span>
+                            {allParameters && (
+                              <div className="space-y-2">
+                                <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                  {activeLayer && activeLayer.type === "land"
+                                    ? "Land Data"
+                                    : activeLayer && activeLayer.type === "crop"
+                                      ? "Crop Production"
+                                      : activeLayer && activeLayer.type === "pest"
+                                        ? "Pest Data"
+                                        : "Weather Data"}
                                 </div>
-                                <div className="ml-4">
-                                  {activeDataLayer.parameter
-                                    .replace(/_/g, " ")
-                                    .replace(/\b\w/g, (l) => l.toUpperCase())}
-                                  : {agriculturalInfo[activeDataLayer.parameter]}
+                                {Object.entries(allParameters).map(([param, value]) => {
+                                  const isActive = activeLayer && param === activeLayer.parameter
+                                  return (
+                                    <div
+                                      key={param}
+                                      className={`flex justify-between items-center p-2 rounded-lg ${
+                                        isActive ? "bg-blue-100 border-l-4 border-blue-500" : "bg-gray-50"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`text-xs ${isActive ? "font-bold text-blue-900" : "text-gray-700"}`}
+                                      >
+                                        {formatParameterName(param)}
+                                      </span>
+                                      <span
+                                        className={`text-xs font-mono ${isActive ? "text-blue-800" : "text-gray-600"}`}
+                                      >
+                                        {formatParameterValue(value, param)}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+
+                            {/* Weather data display */}
+                            {weatherInfo && !activeDataLayer && (
+                              <div className="mt-3 pt-2 border-t">
+                                <div className="text-xs font-semibold text-gray-600 mb-2">Weather Information</div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div className="flex justify-between">
+                                    <span>Max Temp:</span>
+                                    <span className="font-mono">{weatherInfo.avg_annual_max_temperature_c}°C</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Min Temp:</span>
+                                    <span className="font-mono">{weatherInfo.avg_annual_min_temperature_c}°C</span>
+                                  </div>
+                                  <div className="flex justify-between col-span-2">
+                                    <span>Precipitation:</span>
+                                    <span className="font-mono">{weatherInfo.avg_annual_precipitation_mm_day}mm</span>
+                                  </div>
                                 </div>
                               </div>
                             )}
 
-                            {/* Only show weather if not woreda and weatherInfo exists */}
-                            {activeMapLevel !== "woreda" && weatherInfo && !activeDataLayer && (
-                              <>
-                                <div>Max Temp: {weatherInfo.avg_annual_max_temperature_c}</div>
-                                <div>Min Temp: {weatherInfo.avg_annual_min_temperature_c}</div>
-                                <div>Precipitation: {weatherInfo.avg_annual_precipitation_mm_day}</div>
-                              </>
+                            {/* Show basic info if no data available */}
+                            {!weatherInfo && !agriculturalInfo && (
+                              <div className="text-xs text-gray-500">Click to select this {activeMapLevel}</div>
                             )}
                           </div>
                         </foreignObject>
@@ -812,17 +1028,16 @@ export function EthiopiaMap({
                 </g>
               )
             })}
-
-          {showStations &&
+{showStations &&
             stations.map((station) => {
               const coords = station.geometry?.coordinates
               if (!coords || coords.length !== 2) return null
 
               const point = projectPoint(coords[0], coords[1])
-              const isHovered = hoveredStation === station.gid
+              const isHovered = hoveredStation === station.id
 
               return (
-                <g key={station.id}>
+                <g key={station.gid}>
                   <circle
                     cx={point.x}
                     cy={point.y}
@@ -832,7 +1047,7 @@ export function EthiopiaMap({
                     strokeWidth="2"
                     className="cursor-pointer transition-all duration-200 hover:fill-green-700"
                     onMouseEnter={() => {
-                      setHoveredStation(station.gid)
+                      setHoveredStation(station.id ?? null)
                       setHoveredFeature(null)
                       setHoveredLand(null)
                     }}
@@ -870,10 +1085,7 @@ export function EthiopiaMap({
 
           {showAgricultureLands &&
             agricultureLands.map((land) => {
-              const coords = land.geometry?.coordinates
-              if (!coords || coords.length !== 2) return null
-
-              const point = projectPoint(coords[0], coords[1])
+              const point = projectPoint(land.geometry.coordinates[0], land.geometry.coordinates[1])
               const isHovered = hoveredLand === land.id
 
               return (
@@ -881,44 +1093,45 @@ export function EthiopiaMap({
                   <circle
                     cx={point.x}
                     cy={point.y}
-                    r={isHovered ? 10 : 8}
-                    fill="#ea580c"
-                    stroke="#ffffff"
-                    strokeWidth="2"
-                    className="cursor-pointer transition-all duration-200 hover:fill-orange-700"
-                    onMouseEnter={() => {
-                      setHoveredLand(land.id)
-                      setHoveredFeature(null)
-                      setHoveredStation(null)
+                    r={isHovered ? "10" : "8"}
+                    fill={isHovered ? "#dc2626" : "#ea580c"}
+                    stroke="white"
+                    strokeWidth={isHovered ? "3" : "2"}
+                    className="transition-all duration-200 cursor-pointer hover:brightness-110"
+                    style={{
+                      filter: isHovered ? "drop-shadow(0 2px 4px rgba(0,0,0,0.3))" : "none",
                     }}
-                    onMouseLeave={() => setHoveredLand(null)}
                     onClick={() => onLandSelect?.(land)}
+                    onTouchStart={() => setHoveredLand(land.id)}
+                    onTouchEnd={() => setHoveredLand(null)}
                   />
 
                   {isHovered && (
                     <foreignObject
-                      x={point.x + 15}
-                      y={point.y - 60}
-                      width="200"
+                      x={Math.max(0, Math.min(point.x + 15, mapWidth - 220))}
+                      y={Math.max(10, Math.min(point.y - 80, mapHeight - 120))}
+                      width="220"
                       height="120"
                       style={{ pointerEvents: "none", zIndex: 5000 }}
                     >
-                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Wheat className="h-3 w-3 text-orange-600" />
-                          <span className="font-semibold text-gray-800">{land.name}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-medium">Region:</span> {land.region}
+                      <div className="bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-2xl text-xs border border-orange-200 animate-in fade-in-0 zoom-in-95 duration-200">
+                        <div className="font-bold text-orange-900 text-sm mb-2">{land.name}</div>
+                        <div className="text-orange-700 font-medium mb-2">Agricultural Land</div>
+                        <div className="space-y-1 text-gray-600">
+                          <div className="flex justify-between">
+                            <span>Area:</span>
+                            <span className="font-mono">{land.geometry.coordinates[0].toLocaleString()} ha</span>
                           </div>
-                          <div>
-                            <span className="font-medium">Crops:</span> {land.major_crops}
+                          <div className="flex justify-between">
+                            <span>Type:</span>
+                            <span className="capitalize">{land.soil_type}</span>
                           </div>
-                          <div>
-                            <span className="font-medium">Size:</span> {land.land_size}
+                          <div className="flex justify-between">
+                            <span>Coordinates:</span>
+                            <span className="font-mono text-xs">
+                              {land.geometry.coordinates[0].toFixed(3)}, {land.geometry.coordinates[1].toFixed(3)}
+                            </span>
                           </div>
-                          <div className="text-xs text-blue-600 mt-2">Click for more details</div>
                         </div>
                       </div>
                     </foreignObject>

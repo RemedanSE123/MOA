@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { MainLayout, useMapSelection } from "@/components/main-layout"
 import { EthiopiaMap } from "@/components/ethiopia-map"
 import { MapLevelIndicator } from "@/components/map-level-indicator"
@@ -10,19 +10,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { DataCharts } from "@/components/data-charts"
+import { Loader2 } from "lucide-react"
 import {
   Thermometer,
   MapPin,
   AlertTriangle,
   MapIcon,
   Layers,
-  CloudRain,
   Radio,
   Wheat,
   Sprout,
   BarChart3,
   Bug,
+  Download,
+  Search,
+  Filter,
 } from "lucide-react"
 
 interface WeatherData {
@@ -72,6 +76,7 @@ const colorSchemes = {
   green: "#16a34a",
   orange: "#ea580c",
   purple: "#9333ea",
+  amber: "#fbbf24",
 }
 
 function MapContent({
@@ -84,6 +89,7 @@ function MapContent({
   const [weatherData, setWeatherData] = useState<WeatherData[]>([])
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState<string | null>(null)
+  const [weatherParameter, setWeatherParameter] = useState("avg_annual_max_temperature_c")
 
   const [showWeatherData, setShowWeatherData] = useState(false)
   const [showStations, setShowStations] = useState(false)
@@ -115,31 +121,36 @@ function MapContent({
 
   // Control States
   const [selectedYear, setSelectedYear] = useState("2020")
-  const [weatherParameter, setWeatherParameter] = useState<"max_temp" | "min_temp" | "precipitation">("max_temp")
-  const [colorScheme, setColorScheme] = useState("red")
-  const [colorRanges, setColorRanges] = useState(6)
-  const [customRange, setCustomRange] = useState<{ min: number; max: number } | null>(null)
-  const [useCustomRange, setUseCustomRange] = useState(false)
-  const [showPrecipitationIcons, setShowPrecipitationIcons] = useState(false)
 
-  // Interactive Control States
+  const [landColorScheme, setLandColorScheme] = useState("green")
+  const [landColorRanges, setLandColorRanges] = useState(6)
+  const [cropColorScheme, setCropColorScheme] = useState("orange")
+  const [cropColorRanges, setCropColorRanges] = useState(6)
+  const [pestColorScheme, setPestColorScheme] = useState("red")
+  const [pestColorRanges, setPestColorRanges] = useState(6)
+
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
-  const [showDataTable, setShowDataTable] = useState(false)
-  const [exportFormat, setExportFormat] = useState("csv")
 
-  const fetchWeatherData = async (year: string) => {
-    if (!activeWeatherDataSource || !showWeatherData) {
-      setWeatherData([])
-      setWeatherLoading(false)
-      return
-    }
+  const fetchWeatherData = useCallback(
+  async (year: string) => {
+    if (!showWeatherData) return
 
     setWeatherLoading(true)
     setWeatherError(null)
 
     try {
-      const endpoint = activeWeatherDataSource === "r_weather_data" ? "/api/r-weather-data" : "/api/z-weather-data"
+      let endpoint = ""
+      if (activeWeatherDataSource === "r_weather_data") {
+        endpoint = "/api/r-weather-data"
+      } else if (activeWeatherDataSource === "z_weather_data") {
+        endpoint = "/api/z-weather-data"
+      } else if (activeWeatherDataSource === "w_weather_data") {
+        endpoint = "/api/w-weather-data"
+      } else {
+        throw new Error("Invalid weather data source")
+      }
+
       const response = await fetch(`${endpoint}?year=${year}`)
 
       if (!response.ok) {
@@ -149,17 +160,20 @@ function MapContent({
       const data = await response.json()
       if (data.success) {
         setWeatherData(data.data)
-        console.log(` Loaded ${data.data.length} weather records for ${activeMapLevel} level`)
+        console.log(`✅ Loaded ${data.data.length} weather records for ${activeMapLevel} level`)
       } else {
         throw new Error(data.error || "Failed to fetch weather data")
       }
     } catch (err) {
-      console.error(" Error fetching weather data:", err)
+      console.error("❌ Error fetching weather data:", err)
       setWeatherError(err instanceof Error ? err.message : "Failed to load weather data")
     } finally {
       setWeatherLoading(false)
     }
-  }
+  },
+  [showWeatherData, activeWeatherDataSource, activeMapLevel]
+)
+
 
   const fetchStations = async () => {
     if (!showStations) {
@@ -210,104 +224,256 @@ function MapContent({
   }
 
   const fetchLandData = async (year: string) => {
-    if (!landLayerEnabled || activeMapLevel !== "region") {
+    if (!landLayerEnabled) {
       setLandData([])
       return
     }
 
     setLandLoading(true)
     try {
-      const response = await fetch(`/api/land?year=${year}`)
+      let endpoint = "/api/land"
+      if (activeMapLevel === "zone") {
+        endpoint = "/api/z-land"
+      } else if (activeMapLevel === "woreda") {
+        endpoint = "/api/w-land"
+      }
+
+      const response = await fetch(`${endpoint}?year=${year}`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const data = await response.json()
       if (data.success) {
         setLandData(data.data)
-        console.log(`Loaded ${data.data.length} land records`)
+        console.log(`[v0] Loaded ${data.data.length} land records for ${activeMapLevel} level`)
       }
     } catch (err) {
-      console.error("Error fetching land data:", err)
+      console.error("[v0] Error fetching land data:", err)
     } finally {
       setLandLoading(false)
     }
   }
 
   const fetchCropProductionData = async (year: string) => {
-    if (!cropProductionLayerEnabled || activeMapLevel !== "region") {
+    if (!cropProductionLayerEnabled) {
       setCropProductionData([])
       return
     }
 
     setCropProductionLoading(true)
     try {
-      const response = await fetch(`//cropproduction?year=${year}`)
+      let endpoint = "/api/cropproduction"
+      if (activeMapLevel === "zone") {
+        endpoint = "/api/z-cropproduction"
+      } else if (activeMapLevel === "woreda") {
+        endpoint = "/api/w-cropproduction"
+      }
+
+      const response = await fetch(`${endpoint}?year=${year}`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const data = await response.json()
       if (data.success) {
         setCropProductionData(data.data)
-        console.log(`Loaded ${data.data.length} crop production records`)
+        console.log(`[v0] Loaded ${data.data.length} crop production records for ${activeMapLevel} level`)
       }
     } catch (err) {
-      console.error("Error fetching crop production data:", err)
+      console.error("[v0] Error fetching crop production data:", err)
     } finally {
       setCropProductionLoading(false)
     }
   }
 
   const fetchPestData = async (year: string) => {
-    if (!pestDataLayerEnabled || activeMapLevel !== "region") {
+    if (!pestDataLayerEnabled) {
       setPestData([])
       return
     }
 
     setPestLoading(true)
     try {
-      const response = await fetch(`/api/pestdata?year=${year}`)
+      let endpoint = "/api/pestdata"
+      if (activeMapLevel === "zone") {
+        endpoint = "/api/z-pestdata"
+      } else if (activeMapLevel === "woreda") {
+        endpoint = "/api/w_pestdata"
+      }
+
+      const response = await fetch(`${endpoint}?year=${year}`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
       const data = await response.json()
       if (data.success) {
         setPestData(data.data)
-        console.log(`Loaded ${data.data.length} pest data records for ${year}`)
+        console.log(`[v0] Loaded ${data.data.length} pest data records for ${activeMapLevel} level - ${year}`)
         if (data.data.length > 0) {
           const totalIncidence = data.data.reduce(
             (sum: number, item: any) => sum + (Number.parseFloat(item.pest_incidence) || 0),
             0,
           )
           const avgIncidence = totalIncidence / data.data.length
-          console.log(`Average pest incidence: ${avgIncidence.toFixed(2)}%`)
+          console.log(`[v0] Average pest incidence: ${avgIncidence.toFixed(2)}%`)
         }
       }
     } catch (err) {
-      console.error("Error fetching pest data:", err)
+      console.error("[v0] Error fetching pest data:", err)
     } finally {
       setPestLoading(false)
     }
   }
 
-  const filteredData = useMemo(() => {
-    let data = weatherData
+  const getParameterTitle = () => {
+    switch (activeWeatherDataSource) {
+      case "r_weather_data":
+        return "Maximum Temperature (°C)"
+      case "z_weather_data":
+        return "Minimum Temperature (°C)"
+      case "w_weather_data":
+        return "Precipitation (mm/day)"
+      default:
+        return "Temperature Data"
+    }
+  }
 
-    if (!data) return []
+  const getActiveDataForView = useMemo(() => {
+    console.log(
+      "[v0] Determining active data for view - pestDataLayerEnabled:",
+      pestDataLayerEnabled,
+      "cropProductionLayerEnabled:",
+      cropProductionLayerEnabled,
+      "landLayerEnabled:",
+      landLayerEnabled,
+      "showWeatherData:",
+      showWeatherData,
+    )
+
+    // Priority order: Pest Data > Crop Production > Land Data > Weather Data
+    if (pestDataLayerEnabled && pestData.length > 0) {
+      console.log("[v0] Using pest data for view:", pestData.length, "records")
+      return {
+        data: pestData,
+        type: "pest",
+        title: `Pest Management Data - ${pestParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`,
+        icon: <Bug className="h-4 w-4 text-red-600" />,
+        color: pestColorScheme,
+      }
+    }
+
+    if (cropProductionLayerEnabled && cropProductionData.length > 0) {
+      console.log("[v0] Using crop production data for view:", cropProductionData.length, "records")
+      return {
+        data: cropProductionData,
+        type: "crop",
+        title: `Crop Production - ${cropParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`,
+        icon: <BarChart3 className="h-4 w-4 text-amber-600" />,
+        color: cropColorScheme,
+      }
+    }
+
+    if (landLayerEnabled && landData.length > 0) {
+      console.log("[v0] Using land data for view:", landData.length, "records")
+      return {
+        data: landData,
+        type: "land",
+        title: `Land Data - ${landParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`,
+        icon: <Sprout className="h-4 w-4 text-green-600" />,
+        color: landColorScheme,
+      }
+    }
+
+    if (showWeatherData && activeWeatherDataSource) {
+      console.log("[v0] Using weather data for view:", weatherData.length, "records")
+      return {
+        data: weatherData,
+        type: "weather",
+        title: `${getParameterTitle()} - ${selectedYear}`,
+        icon: <Thermometer className="h-4 w-4 text-blue-600" />,
+        color: "blue",
+      }
+    }
+
+    console.log("[v0] No active data layer found")
+    return null
+  }, [
+    pestDataLayerEnabled,
+    pestData,
+    pestParameter,
+    cropProductionLayerEnabled,
+    cropProductionData,
+    cropParameter,
+    landLayerEnabled,
+    landData,
+    landParameter,
+    showWeatherData,
+    weatherData,
+    selectedYear,
+    activeWeatherDataSource,
+  ])
+
+  const filteredDataForView = useMemo(() => {
+    const activeData = getActiveDataForView
+    if (!activeData || !activeData.data) {
+      console.log("[v0] No active data for filtering")
+      return []
+    }
+
+    let data = activeData.data
+    console.log("[v0] Filtering data:", data.length, "records of type:", activeData.type)
+
+    if (activeWeatherDataSource === "w_weather_data") {
+      data = data.filter((item: any) => item.adm2_pcode !== null)
+      console.log("[v0] After woreda filter:", data.length, "records")
+    }
 
     if (searchQuery) {
       data = data.filter((item: any) =>
         Object.values(item).some((value) => String(value).toLowerCase().includes(searchQuery.toLowerCase())),
       )
+      console.log("[v0] After search filter:", data.length, "records")
     }
 
     if (selectedRegions.length > 0) {
       data = data.filter((item: any) => selectedRegions.includes(item.adm1_pcode))
+      console.log("[v0] After region filter:", data.length, "records")
     }
 
     return data
-  }, [weatherData, searchQuery, selectedRegions])
+  }, [getActiveDataForView, searchQuery, selectedRegions, activeWeatherDataSource])
+
+  const exportData = (format: string) => {
+    const activeData = getActiveDataForView
+    if (!activeData || filteredDataForView.length === 0) return
+
+    const dataToExport = filteredDataForView
+    const filename = `${activeData.type}_data_${activeMapLevel}_${selectedYear}.${format}`
+
+    if (format === "csv") {
+      const headers = Object.keys(dataToExport[0]).join(",")
+      const rows = dataToExport.map((item) =>
+        Object.values(item)
+          .map((value) => (typeof value === "string" && value.includes(",") ? `"${value}"` : value))
+          .join(","),
+      )
+      const csvContent = [headers, ...rows].join("\n")
+
+      const blob = new Blob([csvContent], { type: "text/csv" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } else if (format === "json") {
+      const jsonContent = JSON.stringify(dataToExport, null, 2)
+      const blob = new Blob([jsonContent], { type: "application/json" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      a.click()
+      window.URL.revokeObjectURL(url)
+    }
+  }
 
   useEffect(() => {
-    if (showWeatherData) {
-      fetchWeatherData(selectedYear)
-    } else {
-      setWeatherData([])
-    }
-  }, [selectedYear, activeMapLevel, activeWeatherDataSource, showWeatherData])
+    fetchWeatherData(selectedYear)
+  }, [selectedYear, activeMapLevel, activeWeatherDataSource, showWeatherData, fetchWeatherData])
 
   useEffect(() => {
     fetchStations()
@@ -329,79 +495,61 @@ function MapContent({
     fetchPestData(selectedYear)
   }, [selectedYear, pestDataLayerEnabled, activeMapLevel])
 
-  const dataRange = useMemo(() => {
-    if (filteredData.length === 0) return { min: 0, max: 0 }
+// In your MapContent component in page.tsx, add these state variables:
+const [weatherColorScheme, setWeatherColorScheme] = useState("blue")
+const [weatherColorRanges, setWeatherColorRanges] = useState(6)
 
-    const parameterKey =
-      weatherParameter === "max_temp"
-        ? "avg_annual_max_temperature_c"
-        : weatherParameter === "min_temp"
-          ? "avg_annual_min_temperature_c"
-          : "avg_annual_precipitation_mm_day"
-
-    const values = filteredData.map((d) => d[parameterKey as keyof WeatherData] as number).filter((v) => v != null)
-    if (values.length === 0) return { min: 0, max: 0 }
-
-    return { min: Math.min(...values), max: Math.max(...values) }
-  }, [filteredData, weatherParameter])
-
-  const getParameterTitle = () => {
-    switch (weatherParameter) {
-      case "max_temp":
-        return "Maximum Temperature (°C)"
-      case "min_temp":
-        return "Minimum Temperature (°C)"
-      case "precipitation":
-        return "Precipitation (mm/day)"
-      default:
-        return "Temperature Data"
-    }
+// Update the useEffect that sets weatherControlsProps:
+useEffect(() => {
+  const weatherControls = {
+    selectedYear,
+    onYearChange: setSelectedYear,
+    weatherParameter: weatherParameter === "avg_annual_max_temperature_c" ? "max_temp" : 
+                     weatherParameter === "avg_annual_min_temperature_c" ? "min_temp" : "precipitation",
+    onParameterChange: (param: "max_temp" | "min_temp" | "precipitation") => {
+      setWeatherParameter(
+        param === "max_temp" ? "avg_annual_max_temperature_c" :
+        param === "min_temp" ? "avg_annual_min_temperature_c" : "avg_annual_precipitation_mm_day"
+      )
+    },
+    colorScheme: weatherColorScheme, // Use the state
+    onColorSchemeChange: setWeatherColorScheme, // Pass the setter
+    colorRanges: weatherColorRanges, // Use the state
+    onColorRangesChange: setWeatherColorRanges, // Pass the setter
+    onRefresh: () => fetchWeatherData(selectedYear),
+    loading: weatherLoading,
+    showWeatherData,
+    onShowWeatherDataChange: setShowWeatherData,
+    showWeatherStations: showStations,
+    onShowWeatherStationsChange: setShowStations,
   }
 
-  useEffect(() => {
-    const weatherControls = {
-      selectedYear,
-      onYearChange: setSelectedYear,
-      weatherParameter,
-      onParameterChange: setWeatherParameter,
-      colorScheme,
-      onColorSchemeChange: setColorScheme,
-      colorRanges,
-      onColorRangesChange: setColorRanges,
-      customRange,
-      onCustomRangeChange: setCustomRange,
-      useCustomRange,
-      onUseCustomRangeChange: setUseCustomRange,
-      showPrecipitationIcons,
-      onShowPrecipitationIconsChange: setShowPrecipitationIcons,
-      dataRange,
-      onRefresh: () => fetchWeatherData(selectedYear),
-      loading: weatherLoading,
-    }
+  if (typeof setWeatherControlsProps === "function") {
+    setWeatherControlsProps(weatherControls)
+  }
+}, [
+  selectedYear, 
+  weatherParameter, 
+  weatherLoading, 
+  showWeatherData, 
+  showStations, 
+  fetchWeatherData,
+  weatherColorScheme, // Add to dependencies
+  weatherColorRanges, // Add to dependencies
+])
 
-    if (typeof setWeatherControlsProps === "function") {
-      setWeatherControlsProps(weatherControls)
-    }
-  }, [
-    selectedYear,
-    weatherParameter,
-    colorScheme,
-    colorRanges,
-    customRange,
-    useCustomRange,
-    showPrecipitationIcons,
-    dataRange,
-    weatherLoading,
-  ])
+
+
+
 
   useEffect(() => {
     const layerControls = {
       landLayerEnabled,
-      onLandLayerToggle: setLandLayerEnabled, // Fixed prop name from onLandLayerChange to onLandLayerToggle
+      onLandLayerToggle: setLandLayerEnabled,
       cropProductionLayerEnabled,
-      onCropProductionLayerToggle: setCropProductionLayerEnabled, // Fixed prop name from onCropProductionLayerChange to onCropProductionLayerToggle
+      onCropProductionLayerToggle: setCropProductionLayerEnabled,
       pestDataLayerEnabled,
-      onPestDataLayerToggle: setPestDataLayerEnabled, // Fixed prop name from onPestDataLayerChange to onPestDataLayerToggle
+      onPestDataLayerToggle: setPestDataLayerEnabled,
       selectedYear,
       onYearChange: setSelectedYear,
       landParameter,
@@ -410,15 +558,29 @@ function MapContent({
       onCropParameterChange: setCropParameter,
       pestParameter,
       onPestParameterChange: setPestParameter,
-      colorScheme,
-      onColorSchemeChange: setColorScheme,
+      // Individual color controls for each layer
+      landColorScheme,
+      onLandColorSchemeChange: setLandColorScheme,
+      landColorRanges,
+      onLandColorRangesChange: setLandColorRanges,
+      cropColorScheme,
+      onCropColorSchemeChange: setCropColorScheme,
+      cropColorRanges,
+      onCropColorRangesChange: setCropColorRanges,
+      pestColorScheme,
+      onPestColorSchemeChange: setPestColorScheme,
+      pestColorRanges,
+      onPestColorRangesChange: setPestColorRanges,
+      showAgricultureLands, // Add this
+    onShowAgricultureLandsChange: setShowAgricultureLands, // Add this
       onRefresh: () => {
         if (landLayerEnabled) fetchLandData(selectedYear)
         if (cropProductionLayerEnabled) fetchCropProductionData(selectedYear)
         if (pestDataLayerEnabled) fetchPestData(selectedYear)
         if (showWeatherData) fetchWeatherData(selectedYear)
+           if (showAgricultureLands) fetchAgricultureLands() // Add this
       },
-      loading: landLoading || cropProductionLoading || pestLoading, // Combined loading states
+      loading: landLoading || cropProductionLoading || pestLoading,
     }
 
     if (typeof setLayerControlsProps === "function") {
@@ -431,13 +593,23 @@ function MapContent({
     landParameter,
     cropParameter,
     pestParameter,
+    landColorScheme,
+    landColorRanges,
+    cropColorScheme,
+    cropColorRanges,
+    pestColorScheme,
+    pestColorRanges,
     selectedYear,
-    colorScheme,
     landLoading,
     cropProductionLoading,
     pestLoading,
-    showWeatherData,
+     showAgricultureLands, // Add this
+  agricultureLoading, // Add this
   ])
+
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [getActiveDataForView, searchQuery, selectedRegions, activeMapLevel])
 
   const [currentPage, setCurrentPage] = useState(0)
 
@@ -475,101 +647,69 @@ function MapContent({
 
             {/* Land Data Toggle */}
             <div
-              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 ${
-                activeMapLevel === "region"
-                  ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-300"
-                  : "bg-gray-50 border-gray-200 opacity-60"
-              }`}
+              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:border-green-300`}
             >
               <div className="flex items-center space-x-2">
-                <div className={`p-1.5 rounded-lg ${activeMapLevel === "region" ? "bg-green-100" : "bg-gray-100"}`}>
-                  <Sprout className={`h-4 w-4 ${activeMapLevel === "region" ? "text-green-600" : "text-gray-400"}`} />
+                <div className="p-1.5 bg-green-100 rounded-lg">
+                  <Sprout className="h-4 w-4 text-green-600" />
                 </div>
                 <div>
-                  <Label
-                    htmlFor="land-toggle"
-                    className={`font-semibold text-sm cursor-pointer ${
-                      activeMapLevel === "region" ? "text-green-900" : "text-gray-500"
-                    }`}
-                  >
+                  <Label htmlFor="land-toggle" className="font-semibold text-sm cursor-pointer text-green-900">
                     Land Data
                   </Label>
-                  {activeMapLevel !== "region" && <div className="text-xs text-gray-400">Region level only</div>}
+                  <div className="text-xs text-green-600">Available for all levels</div>
                 </div>
               </div>
               <Switch
                 id="land-toggle"
-                checked={landLayerEnabled && activeMapLevel === "region"}
+                checked={landLayerEnabled}
                 onCheckedChange={setLandLayerEnabled}
-                disabled={activeMapLevel !== "region"}
                 className="data-[state=checked]:bg-green-600"
               />
             </div>
 
             {/* Crop Production Toggle */}
             <div
-              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 ${
-                activeMapLevel === "region"
-                  ? "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 hover:border-amber-300"
-                  : "bg-gray-50 border-gray-200 opacity-60"
-              }`}
+              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 hover:border-amber-300`}
             >
               <div className="flex items-center space-x-2">
-                <div className={`p-1.5 rounded-lg ${activeMapLevel === "region" ? "bg-amber-100" : "bg-gray-100"}`}>
-                  <BarChart3
-                    className={`h-4 w-4 ${activeMapLevel === "region" ? "text-amber-600" : "text-gray-400"}`}
-                  />
+                <div className="p-1.5 bg-amber-100 rounded-lg">
+                  <BarChart3 className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <Label
-                    htmlFor="crop-toggle"
-                    className={`font-semibold text-sm cursor-pointer ${
-                      activeMapLevel === "region" ? "text-amber-900" : "text-gray-500"
-                    }`}
-                  >
+                  <Label htmlFor="crop-toggle" className="font-semibold text-sm cursor-pointer text-amber-900">
                     Crop Production
                   </Label>
-                  {activeMapLevel !== "region" && <div className="text-xs text-gray-400">Region level only</div>}
+                  <div className="text-xs text-amber-600">Available for all levels</div>
                 </div>
               </div>
               <Switch
                 id="crop-toggle"
-                checked={cropProductionLayerEnabled && activeMapLevel === "region"}
+                checked={cropProductionLayerEnabled}
                 onCheckedChange={setCropProductionLayerEnabled}
-                disabled={activeMapLevel !== "region"}
                 className="data-[state=checked]:bg-amber-600"
               />
             </div>
 
             {/* Pest Data Toggle */}
             <div
-              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 ${
-                activeMapLevel === "region"
-                  ? "bg-gradient-to-r from-red-50 to-pink-50 border-red-200 hover:border-red-300"
-                  : "bg-gray-50 border-gray-200 opacity-60"
-              }`}
+              className={`flex items-center justify-between p-3 border-2 rounded-xl transition-all duration-200 bg-gradient-to-r from-red-50 to-pink-50 border-red-200 hover:border-red-300`}
             >
               <div className="flex items-center space-x-2">
-                <div className={`p-1.5 rounded-lg ${activeMapLevel === "region" ? "bg-red-100" : "bg-gray-100"}`}>
-                  <Bug className={`h-4 w-4 ${activeMapLevel === "region" ? "text-red-600" : "text-gray-400"}`} />
+                <div className="p-1.5 bg-red-100 rounded-lg">
+                  <Bug className="h-4 w-4 text-red-600" />
                 </div>
                 <div>
-                  <Label
-                    htmlFor="pest-toggle"
-                    className={`font-semibold text-sm cursor-pointer ${
-                      activeMapLevel === "region" ? "text-red-900" : "text-gray-500"
-                    }`}
-                  >
+                  <Label htmlFor="pest-toggle" className="font-semibold text-sm cursor-pointer text-red-900">
                     Pest Data
                   </Label>
-                  {activeMapLevel !== "region" && <div className="text-xs text-gray-400">Region level only</div>}
+                  <div className="text-xs text-red-600">Available for all levels</div>
                 </div>
               </div>
               <Switch
                 id="pest-toggle"
-                checked={pestDataLayerEnabled && activeMapLevel === "region"}
+                checked={pestDataLayerEnabled}
                 onCheckedChange={setPestDataLayerEnabled}
-                disabled={activeMapLevel !== "region"}
                 className="data-[state=checked]:bg-red-600"
               />
             </div>
@@ -611,57 +751,23 @@ function MapContent({
             </div>
           </div>
 
-          {/* Agricultural Data Restriction Alert */}
-          {activeMapLevel !== "region" && (landLayerEnabled || cropProductionLayerEnabled || pestDataLayerEnabled) && (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-sm text-amber-800">
-                Agricultural data layers (Land, Crop Production, Pest Data) are only available for Region level maps.
-                Please select Region Map to view this data.
+          {showWeatherData && weatherLoading && (
+            <Alert>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <AlertDescription className="text-xs">
+                Loading weather data for {activeMapLevel} level...
               </AlertDescription>
             </Alert>
           )}
 
-          {pestDataLayerEnabled && (
-            <div className="flex items-center justify-between p-2 border rounded-lg bg-red-50 border-red-200">
-              <div className="flex items-center space-x-1.5">
-                <AlertTriangle className="h-3 w-3 text-red-600" />
-                <div>
-                  <Label className="font-medium text-red-700 text-xs">Pest Management Alert System Active</Label>
-                  <div className="text-xs text-red-600">Monitoring agricultural pest threats across regions</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showWeatherData && weatherParameter === "precipitation" && (
-            <div className="flex items-center justify-between p-2 border rounded-lg bg-blue-50">
-              <div className="flex items-center space-x-1.5">
-                <CloudRain className="h-3 w-3 text-blue-600" />
-                <Label htmlFor="precipitation-icons" className="font-medium text-xs">
-                  Show Precipitation Icons
-                </Label>
-              </div>
-              <Switch
-                id="precipitation-icons"
-                checked={showPrecipitationIcons}
-                onCheckedChange={setShowPrecipitationIcons}
-              />
-            </div>
+          {showWeatherData && weatherError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-3 w-3" />
+              <AlertDescription className="text-xs">{weatherError}</AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>
-
-      {/* No Weather Data Alert for Woreda Level */}
-      {!activeWeatherDataSource && showWeatherData && (
-        <Alert>
-          <AlertTriangle className="h-3 w-3" />
-          <AlertDescription className="text-xs">
-            Weather data is not available for woreda level. Please select region or zone level to view weather
-            information.
-          </AlertDescription>
-        </Alert>
-      )}
 
       <Tabs defaultValue="map" className="space-y-3">
         <TabsList className="grid w-full grid-cols-3">
@@ -676,6 +782,11 @@ function MapContent({
           <TabsTrigger value="data" className="flex items-center space-x-1.5 text-xs">
             <Layers className="h-3 w-3" />
             <span>Data View</span>
+            {getActiveDataForView && (
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {filteredDataForView.length}
+              </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -706,28 +817,61 @@ function MapContent({
                   </Button>
                 </div>
               ) : (
-                <EthiopiaMap
-                  activeLayer={
-                    pestDataLayerEnabled && pestData.length > 0
-                      ? "pest"
-                      : cropProductionLayerEnabled && cropProductionData.length > 0
-                        ? "crop"
-                        : landLayerEnabled && landData.length > 0
-                          ? "land"
-                          : showWeatherData && activeWeatherDataSource
-                            ? "weather"
-                            : "boundaries"
-                  }
-                  activeMapLevel={activeMapLevel}
-                  weatherData={filteredData}
-                  weatherParameter={weatherParameter}
-                  baseColor={colorSchemes[colorScheme as keyof typeof colorSchemes]}
-                  colorRanges={colorRanges}
+
+
+
+
+               <EthiopiaMap
+  activeLayer={
+    pestDataLayerEnabled && pestData.length > 0
+      ? "pest"
+      : cropProductionLayerEnabled && cropProductionData.length > 0
+        ? "crop"
+        : landLayerEnabled && landData.length > 0
+          ? "land"
+          : showWeatherData && activeWeatherDataSource
+            ? "weather"
+            : "boundaries"
+  }
+  activeMapLevel={activeMapLevel}
+  weatherData={weatherData}
+  weatherParameter={
+    weatherParameter === "avg_annual_max_temperature_c"
+      ? "max_temp"
+      : weatherParameter === "avg_annual_min_temperature_c"
+        ? "min_temp"
+        : weatherParameter === "avg_annual_precipitation_mm_day"
+          ? "precipitation"
+          : undefined
+  }
+  baseColor={
+    pestDataLayerEnabled && pestData.length > 0
+      ? colorSchemes[pestColorScheme as keyof typeof colorSchemes]
+      : cropProductionLayerEnabled && cropProductionData.length > 0
+        ? colorSchemes[cropColorScheme as keyof typeof colorSchemes]
+        : landLayerEnabled && landData.length > 0
+          ? colorSchemes[landColorScheme as keyof typeof colorSchemes]
+          : showWeatherData // Add this condition for weather
+          ? colorSchemes[weatherColorScheme as keyof typeof colorSchemes]
+          : colorSchemes.blue
+  }
+  colorRanges={
+    pestDataLayerEnabled && pestData.length > 0
+      ? pestColorRanges
+      : cropProductionLayerEnabled && cropProductionData.length > 0
+        ? cropColorRanges
+        : landLayerEnabled && landData.length > 0
+          ? landColorRanges
+          : showWeatherData // Add this condition for weather
+          ? weatherColorRanges
+          : 6
+  }
+
+
                   overlayLayers={{ boundaries: true, pins: false }}
                   layerOpacity={{ boundaries: 0.8, pins: 1.0 }}
                   stations={stations}
                   showStations={showStations}
-                  showPrecipitationIcons={showPrecipitationIcons}
                   agricultureLands={agricultureLands}
                   showAgricultureLands={showAgricultureLands}
                   onLandSelect={setSelectedLand}
@@ -811,7 +955,7 @@ function MapContent({
             landData={landData}
             cropProductionData={cropProductionData}
             pestData={pestData}
-            weatherData={filteredData}
+            weatherData={weatherData}
             activeDataLayers={[
               ...(landLayerEnabled ? ["Land Data"] : []),
               ...(cropProductionLayerEnabled ? ["Crop Production"] : []),
@@ -825,66 +969,175 @@ function MapContent({
         <TabsContent value="data">
           <Card>
             <CardHeader>
-              <CardTitle>Data Table - {filteredData.length} records</CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center space-x-2">
+                  {getActiveDataForView ? (
+                    <>
+                      {getActiveDataForView.icon}
+                      <CardTitle className="text-sm">{getActiveDataForView.title}</CardTitle>
+                      <Badge
+                        variant="outline"
+                        className={`text-${getActiveDataForView.color}-600 border-${getActiveDataForView.color}-200`}
+                      >
+                        {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Level
+                      </Badge>
+                    </>
+                  ) : (
+                    <CardTitle className="text-sm">No Data Layer Active</CardTitle>
+                  )}
+                </div>
+
+                {getActiveDataForView && (
+                  <div className="flex items-center space-x-2">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search data..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 pr-3 py-1 text-xs border rounded-md w-32 sm:w-48"
+                      />
+                    </div>
+                    <Button onClick={() => exportData("csv")} size="sm" variant="outline" className="text-xs">
+                      <Download className="h-3 w-3 mr-1" />
+                      CSV
+                    </Button>
+                    <Button onClick={() => exportData("json")} size="sm" variant="outline" className="text-xs">
+                      <Download className="h-3 w-3 mr-1" />
+                      JSON
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {getActiveDataForView && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {filteredDataForView.length} records
+                  </Badge>
+                  {searchQuery && (
+                    <Badge variant="outline" className="text-xs">
+                      <Search className="h-3 w-3 mr-1" />
+                      Filtered by: "{searchQuery}"
+                    </Badge>
+                  )}
+                  {selectedRegions.length > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      <Filter className="h-3 w-3 mr-1" />
+                      {selectedRegions.length} regions selected
+                    </Badge>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
-              {filteredData.length > 0 ? (
-                <div className="overflow-x-auto -mx-2 md:mx-0">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        {Object.keys(filteredData[0])
-                          .slice(1) // remove first column
-                          .map((key) => (
-                            <th key={key} className="text-left p-2 font-medium">
-                              {key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                            </th>
+              {!getActiveDataForView ? (
+                <div className="text-center py-12">
+                  <Layers className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Data Layer Active</h3>
+                  <p className="text-gray-500 mb-4">
+                    Enable a data layer from the controls above to view data in the table.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Weather Data
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      Land Data
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      Crop Production
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      Pest Data
+                    </Badge>
+                  </div>
+                </div>
+              ) : filteredDataForView.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto -mx-2 md:mx-0">
+                    <table className="w-full text-sm data-table">
+                      <thead>
+                        <tr className="border-b">
+                          {Object.keys(filteredDataForView[0])
+                            .filter((key) => key !== "id" && key !== "gid") // Remove ID columns
+                            .map((key) => (
+                              <th key={key} className="text-left p-3 font-medium bg-muted/50">
+                                {key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                              </th>
+                            ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredDataForView
+                          .slice(currentPage * 20, (currentPage + 1) * 20)
+                          .map((item: any, index: number) => (
+                            <tr key={index} className="border-b hover:bg-muted/30 transition-colors">
+                              {Object.entries(item)
+                                .filter(([key]) => key !== "id" && key !== "gid") // Remove ID columns
+                                .map(([key, value], idx) => (
+                                  <td key={idx} className="p-3">
+                                    {typeof value === "number" ? (
+                                      <span className="font-mono">{value.toLocaleString()}</span>
+                                    ) : (
+                                      <span className="break-words">{String(value)}</span>
+                                    )}
+                                  </td>
+                                ))}
+                            </tr>
                           ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredData
-                        .slice(currentPage * 20, (currentPage + 1) * 20) // pagination
-                        .map((item: any, index: number) => (
-                          <tr key={index} className="border-b hover:bg-muted/50">
-                            {Object.values(item)
-                              .slice(1) // remove first column
-                              .map((value: any, idx: number) => (
-                                <td key={idx} className="p-2">
-                                  {typeof value === "number" ? value.toLocaleString() : String(value)}
-                                </td>
-                              ))}
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
+                  </div>
 
-                  {filteredData.length > 20 && (
-                    <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
-                      <button
-                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 0))}
-                        disabled={currentPage === 0}
-                        className="px-3 py-1 border rounded hover:bg-muted/20 disabled:opacity-50 text-sm"
-                      >
-                        Previous
-                      </button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {currentPage + 1} of {Math.ceil(filteredData.length / 20)}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(filteredData.length / 20) - 1))
-                        }
-                        disabled={currentPage === Math.ceil(filteredData.length / 20) - 1}
-                        className="px-3 py-1 border rounded hover:bg-muted/20 disabled:opacity-50 text-sm"
-                      >
-                        Next
-                      </button>
+                  {filteredDataForView.length > 20 && (
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {currentPage * 20 + 1} to {Math.min((currentPage + 1) * 20, filteredDataForView.length)}{" "}
+                        of {filteredDataForView.length} records
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 0))}
+                          disabled={currentPage === 0}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground px-2">
+                          Page {currentPage + 1} of {Math.ceil(filteredDataForView.length / 20)}
+                        </span>
+                        <Button
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.min(prev + 1, Math.ceil(filteredDataForView.length / 20) - 1))
+                          }
+                          disabled={currentPage === Math.ceil(filteredDataForView.length / 20) - 1}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Next
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <p className="text-center text-muted-foreground py-8">No data available</p>
+                <div className="text-center py-8">
+                  <AlertTriangle className="h-8 w-8 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Data Found</h3>
+                  <p className="text-gray-500">
+                    {searchQuery
+                      ? `No records match your search for "${searchQuery}". Try adjusting your search terms.`
+                      : `No data available for ${getActiveDataForView.type} layer at ${activeMapLevel} level for ${selectedYear}.`}
+                  </p>
+                  {searchQuery && (
+                    <Button onClick={() => setSearchQuery("")} variant="outline" size="sm" className="mt-4">
+                      Clear Search
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
