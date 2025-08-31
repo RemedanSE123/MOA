@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ZoomIn, ZoomOut, RotateCcw, CloudRain, Sprout, BarChart3, Bug, MapPin } from "lucide-react"
+import { ZoomIn, ZoomOut, RotateCcw, CloudRain, Sprout, BarChart3, Bug, MapPin, Wheat } from "lucide-react"
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -30,8 +30,8 @@ interface WeatherData {
   id: number
   adm1_en: string
   adm1_pcode: string
-  adm2_pcode?: string // Added adm2_pcode field for zone data
-  adm3_pcode?: string // Added adm3_pcode field for woreda data
+  adm2_pcode?: string
+  adm3_pcode?: string
   year: number
   avg_annual_precipitation_mm_day: number
   avg_annual_max_temperature_c: number
@@ -40,7 +40,7 @@ interface WeatherData {
 
 interface Station {
   gid: number
-   id?: number // Add this if needed
+  id?: number
   adm1_en: string
   adm1_pcode: string
   longitude: number
@@ -146,6 +146,21 @@ export function EthiopiaMap({
   const [hoveredFeature, setHoveredFeature] = useState<string | null>(null)
   const [hoveredStation, setHoveredStation] = useState<number | null>(null)
   const [hoveredLand, setHoveredLand] = useState<number | null>(null)
+  const [featuresRenderOrder, setFeaturesRenderOrder] = useState<string[]>([])
+
+  const handleFeatureInteraction = useCallback((feature: MapFeature, isEntering: boolean) => {
+    if (isEntering) {
+      setHoveredFeature(feature.code)
+      setHoveredStation(null)
+      setHoveredLand(null)
+      setFeaturesRenderOrder(prev => [
+        feature.code,
+        ...prev.filter(code => code !== feature.code)
+      ])
+    } else {
+      setHoveredFeature(null)
+    }
+  }, [])
 
   // Ethiopia bounding box (approximate)
   const bounds = {
@@ -291,7 +306,6 @@ export function EthiopiaMap({
   const parseNumericValue = useCallback((value: any): number | null => {
     if (typeof value === "number") return value
     if (typeof value === "string") {
-      // Remove units like "°C", "mm", etc. and parse the number
       const numericMatch = value.match(/^([\d.-]+)/)
       if (numericMatch) {
         const parsed = Number.parseFloat(numericMatch[1])
@@ -348,15 +362,8 @@ export function EthiopiaMap({
 
   const getFeatureColor = useCallback(
     (feature: MapFeature) => {
-      console.log("[v0] Getting color for feature:", feature.name, "code:", feature.code, "level:", feature.level)
-
-      // Handle agricultural data layers with proper administrative level matching
       if (activeDataLayer) {
-        console.log("[v0] Using agricultural data layer:", activeDataLayer.type, "for level:", activeMapLevel)
-
         let dataInfo: any = null
-
-        // Match data based on administrative level
         if (activeMapLevel === "region") {
           dataInfo = activeDataLayer.data.find((data) => data.adm1_pcode === feature.code)
         } else if (activeMapLevel === "zone") {
@@ -365,135 +372,58 @@ export function EthiopiaMap({
           dataInfo = activeDataLayer.data.find((data) => data.adm3_pcode === feature.code)
         }
 
-        console.log("[v0] Found agricultural data:", dataInfo)
-
-        if (!dataInfo) {
-          console.log("[v0] No agricultural data found, returning default color")
-          return "#e5e7eb"
-        }
+        if (!dataInfo) return "#e5e7eb"
 
         const rawValue = dataInfo[activeDataLayer.parameter]
         const value = parseNumericValue(rawValue)
-        console.log("[v0] Raw agricultural value:", rawValue, "Parsed value:", value)
-
-        if (value == null) {
-          console.log("[v0] Invalid agricultural value, returning default color")
-          return "#e5e7eb"
-        }
+        if (value == null) return "#e5e7eb"
 
         const { min, max } = minMax
-        console.log("[v0] Agricultural Min/Max values:", min, max)
-
-        if (min === max) {
-          console.log("[v0] Min equals max, returning base color")
-          return baseColor
-        }
+        if (min === max) return baseColor
 
         const factor = Math.max(0, Math.min(1, (value - min) / (max - min)))
-        console.log("[v0] Agricultural color factor:", factor)
-
         const baseRgb = hexToRgb(baseColor)
-        if (!baseRgb) {
-          console.log("[v0] Invalid base color, returning default")
-          return "#e5e7eb"
-        }
+        if (!baseRgb) return "#e5e7eb"
 
-        // Generate color based on factor and colorRanges - fixed color range application
         const colorIndex = Math.min(Math.floor(factor * colorRanges), colorRanges - 1)
         const intensity = colorIndex / Math.max(1, colorRanges - 1)
         const r = Math.round(255 - (255 - baseRgb.r) * intensity)
         const g = Math.round(255 - (255 - baseRgb.g) * intensity)
         const b = Math.round(255 - (255 - baseRgb.b) * intensity)
-        const finalColor = `rgb(${r},${g},${b})`
-        console.log(
-          "[v0] Final agricultural color:",
-          finalColor,
-          "for feature:",
-          feature.name,
-          "intensity:",
-          intensity,
-          "colorIndex:",
-          colorIndex,
-        )
-
-        return finalColor
+        return `rgb(${r},${g},${b})`
       }
 
-      // Handle weather data with proper administrative level matching
-      if (activeLayer !== "weather" || !parameterKey) {
-        console.log("[v0] Returning default color - activeLayer or parameterKey missing")
-        return "#e5e7eb"
-      }
-
-      if (weatherParameter === "precipitation" && showPrecipitationIcons) {
-        return "#f3f4f6" // Light gray background when showing icons
-      }
+      if (activeLayer !== "weather" || !parameterKey) return "#e5e7eb"
+      if (weatherParameter === "precipitation" && showPrecipitationIcons) return "#f3f4f6"
 
       let weatherInfo: WeatherData | undefined
-
       if (activeMapLevel === "region") {
         weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
-        console.log("[v0] Looking for region weather data with code:", feature.code)
       } else if (activeMapLevel === "zone") {
         weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
-        console.log("[v0] Looking for zone weather data with code:", feature.code)
       } else if (activeMapLevel === "woreda") {
         weatherInfo = weatherData.find((data) => data.adm3_pcode === feature.code)
-        console.log("[v0] Looking for woreda weather data with code:", feature.code)
       }
 
-      console.log("[v0] Found weather info:", weatherInfo)
-
-      if (!weatherInfo) {
-        console.log("[v0] No weather info found, returning default color")
-        return "#e5e7eb"
-      }
+      if (!weatherInfo) return "#e5e7eb"
 
       const rawValue = weatherInfo[parameterKey as keyof WeatherData]
       const value = parseNumericValue(rawValue)
-      console.log("[v0] Raw weather value:", rawValue, "Parsed value:", value, "for parameter:", parameterKey)
-
-      if (value == null) {
-        console.log("[v0] Invalid value after parsing, returning default color")
-        return "#e5e7eb"
-      }
+      if (value == null) return "#e5e7eb"
 
       const { min, max } = minMax
-      console.log("[v0] Weather Min/Max values:", min, max)
-
-      if (min === max) {
-        console.log("[v0] Min equals max, returning base color")
-        return baseColor
-      }
+      if (min === max) return baseColor
 
       const factor = Math.max(0, Math.min(1, (value - min) / (max - min)))
-      console.log("[v0] Weather color factor:", factor)
-
       const baseRgb = hexToRgb(baseColor)
-      if (!baseRgb) {
-        console.log("[v0] Invalid base color, returning default")
-        return "#e5e7eb"
-      }
+      if (!baseRgb) return "#e5e7eb"
 
-      // Generate color based on factor and colorRanges - fixed color range application
       const colorIndex = Math.min(Math.floor(factor * colorRanges), colorRanges - 1)
       const intensity = colorIndex / Math.max(1, colorRanges - 1)
       const r = Math.round(255 - (255 - baseRgb.r) * intensity)
       const g = Math.round(255 - (255 - baseRgb.g) * intensity)
       const b = Math.round(255 - (255 - baseRgb.b) * intensity)
-      const finalColor = `rgb(${r},${g},${b})`
-      console.log(
-        "[v0] Final weather color:",
-        finalColor,
-        "for feature:",
-        feature.name,
-        "intensity:",
-        intensity,
-        "colorIndex:",
-        colorIndex,
-      )
-
-      return finalColor
+      return `rgb(${r},${g},${b})`
     },
     [
       activeLayer,
@@ -532,20 +462,21 @@ export function EthiopiaMap({
       if (min === max) return 12
 
       const factor = (value - min) / (max - min)
-      return 8 + factor * 16 // Size between 8 and 24
+      return 8 + factor * 16
     },
     [weatherData, weatherParameter, showPrecipitationIcons, activeMapLevel, parseNumericValue, minMax],
   )
 
-  const handleFeatureInteraction = useCallback((feature: MapFeature, isEntering: boolean) => {
-    if (isEntering) {
-      setHoveredFeature(feature.code)
-      setHoveredStation(null)
-      setHoveredLand(null)
-    } else {
-      setHoveredFeature(null)
-    }
-  }, [])
+  const sortedFeatures = useMemo(() => {
+    return [...features].sort((a, b) => {
+      const aIndex = featuresRenderOrder.indexOf(a.code)
+      const bIndex = featuresRenderOrder.indexOf(b.code)
+      if (aIndex === -1 && bIndex === -1) return 0
+      if (aIndex === -1) return -1
+      if (bIndex === -1) return 1
+      return aIndex - bIndex
+    })
+  }, [features, featuresRenderOrder])
 
   const handleFeatureClick = useCallback(
     (feature: MapFeature) => {
@@ -570,7 +501,7 @@ export function EthiopiaMap({
       const isHovered = hoveredFeature === feature.code
 
       if (isSelected) return "#ffffff"
-      if (isHovered) return "#3b82f6" // Blue highlight on hover
+      if (isHovered) return "#3b82f6"
       return "#9ca3af"
     },
     [selectedRegion, selectedZone, selectedWoreda, hoveredFeature],
@@ -592,23 +523,9 @@ export function EthiopiaMap({
     [selectedRegion, selectedZone, selectedWoreda, hoveredFeature],
   )
 
-  const getSafeTooltipPosition = useCallback(
-    (centerPoint: { x: number; y: number }, tooltipWidth = 250, tooltipHeight = 150) => {
-      // Validate centerPoint values and provide fallbacks
-      const safeX = isNaN(centerPoint.x) || !isFinite(centerPoint.x) ? mapWidth / 2 : centerPoint.x
-      const safeY = isNaN(centerPoint.y) || !isFinite(centerPoint.y) ? mapHeight / 2 : centerPoint.y
-
-      return {
-        x: Math.max(0, Math.min(safeX + 10, mapWidth - tooltipWidth)),
-        y: Math.max(0, Math.min(safeY - 75, mapHeight - tooltipHeight)),
-      }
-    },
-    [mapWidth, mapHeight],
-  )
-
   const getAllParametersForFeature = useCallback(
     (feature: any, activeLayer: any) => {
-      if (!activeLayer || !activeLayer.data) return null;
+      if (!activeLayer || !activeLayer.data) return null
       const featureData = activeLayer.data.find((item: any) => {
         if (activeMapLevel === "region") return item.adm1_en === feature.name
         if (activeMapLevel === "zone") return item.adm2_en === feature.name
@@ -618,7 +535,6 @@ export function EthiopiaMap({
 
       if (!featureData) return null
 
-      // Return all relevant parameters based on layer type
       if (activeLayer.type === "land") {
         return {
           total_agri_land: featureData.total_agri_land,
@@ -649,16 +565,17 @@ export function EthiopiaMap({
   const formatParameterName = useCallback((param: string) => {
     const names: { [key: string]: string } = {
       total_agri_land: "Total Agricultural Land",
-      plowed: "Plowed Area",
-      sowed: "Sowed Area",
-      harvested: "Harvested Area",
+      plowed_area: "Plowed Area",
+      sowed_land: "Sowed Area",
+      harvested_land: "Harvested Area",
       teff_production_mt: "Teff Production",
       wheat_production_mt: "Wheat Production",
       barley_production_mt: "Barley Production",
       maize_production_mt: "Maize Production",
       pest_incidence: "Pest Incidence",
       affected_area_ha: "Affected Area",
-      severity_level: "Severity Level",
+      crop_loss_tons: "Crop Loss",
+      pest_control_cost_etb: "Pest Control Cost",
     }
     return names[param] || param.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
   }, [])
@@ -669,7 +586,8 @@ export function EthiopiaMap({
       if (param.includes("_ha") || param.includes("_land")) return `${value.toLocaleString()} ha`
       if (param.includes("_mt")) return `${value.toLocaleString()} MT`
       if (param.includes("temp")) return `${value}°C`
-      if (param.includes("precipitation")) return `${value}mm`
+      if (param.includes("precipitation")) return `${value} mm`
+      if (param.includes("cost")) return `${value.toLocaleString()} ETB`
       return value.toLocaleString()
     }
     return String(value)
@@ -717,14 +635,13 @@ export function EthiopiaMap({
     if (activeDataLayer) {
       switch (activeDataLayer.type) {
         case "land":
-          return landParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+          return formatParameterName(landParameter)
         case "crop":
-          return cropParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+          return formatParameterName(cropParameter)
         case "pest":
-          return pestParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+          return formatParameterName(pestParameter)
       }
     }
-
     return weatherParameter === "max_temp"
       ? "Max Temperature °C"
       : weatherParameter === "min_temp"
@@ -779,6 +696,7 @@ export function EthiopiaMap({
         </Button>
       </div>
 
+      {/* Legend */}
       {((activeLayer === "weather" && !showPrecipitationIcons) || activeDataLayer) &&
         legendColors.length > 0 &&
         min !== max && (
@@ -802,6 +720,7 @@ export function EthiopiaMap({
           </div>
         )}
 
+      {/* Station Legend */}
       {showStations && stations.length > 0 && (
         <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 z-10 bg-white rounded-lg shadow-lg p-2 md:p-4 max-w-xs">
           <div className="space-y-2">
@@ -814,8 +733,9 @@ export function EthiopiaMap({
         </div>
       )}
 
+      {/* Agriculture Lands Legend */}
       {showAgricultureLands && agricultureLands.length > 0 && (
-        <div className="absolute top-2 left-2 md:top-4 md:left-4 z-10 bg-white rounded-lg shadow-lg p-2 md:p-4 max-w-xs">
+        <div className="absolute top-16 left-2 md:top-20 md:left-4 z-10 bg-white rounded-lg shadow-lg p-2 md:p-4 max-w-xs">
           <div className="space-y-2">
             <div className="flex items-center space-x-1 md:space-x-2">
               <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
@@ -826,7 +746,174 @@ export function EthiopiaMap({
         </div>
       )}
 
+      {/* Hover Tooltip */}
+      {(hoveredFeature || hoveredStation || hoveredLand) && (
+        <div
+          className="absolute top-2 left-2 md:top-4 md:left-4 z-50 bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-2xl p-4 text-xs border-2 border-primary/20 animate-in fade-in-0 zoom-in-95 duration-200 w-[280px] max-h-[300px] overflow-y-auto"
+          style={{
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.8)",
+          }}
+        >
+          {hoveredFeature && (
+            (() => {
+              const feature = sortedFeatures.find((f) => f.code === hoveredFeature)
+              if (!feature) return null
 
+              let featureName = feature.name
+              let weatherInfo: WeatherData | undefined
+              let agriculturalInfo: any = null
+
+              if (activeMapLevel === "region") {
+                weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
+                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm1_pcode === feature.code)
+                featureName = weatherInfo?.adm1_en || feature.name
+              } else if (activeMapLevel === "zone") {
+                weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
+                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm2_pcode === feature.code)
+              } else if (activeMapLevel === "woreda") {
+                weatherInfo = weatherData.find((data) => data.adm3_pcode === feature.code)
+                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm3_pcode === feature.code)
+              }
+
+              const allParameters = activeDataLayer ? getAllParametersForFeature(feature, activeDataLayer) : null
+
+              return (
+                <div>
+                  <div className="font-bold text-gray-900 text-base mb-3 border-b-2 border-primary/20 pb-2 bg-gradient-to-r from-primary/5 to-transparent px-2 py-1 rounded-lg -mx-2">
+                    {featureName}
+                  </div>
+
+                  {allParameters && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-primary uppercase tracking-wide flex items-center space-x-2">
+                        {activeDataLayer?.type === "land" && <Sprout className="h-3 w-3" />}
+                        {activeDataLayer?.type === "crop" && <BarChart3 className="h-3 w-3" />}
+                        {activeDataLayer?.type === "pest" && <Bug className="h-3 w-3" />}
+                        <span>
+                          {activeDataLayer?.type === "land"
+                            ? "Land Data"
+                            : activeDataLayer?.type === "crop"
+                              ? "Crop Production"
+                              : "Pest Data"}
+                        </span>
+                      </div>
+                      {Object.entries(allParameters).map(([param, value]) => {
+                        const isActive = activeDataLayer && param === activeDataLayer.parameter
+                        return (
+                          <div
+                            key={param}
+                            className={`flex justify-between items-center p-2.5 rounded-lg transition-all duration-200 ${
+                              isActive
+                                ? "bg-gradient-to-r from-primary/10 to-primary/5 border-l-4 border-primary shadow-sm"
+                                : "bg-gray-50/80 hover:bg-gray-100/80"
+                            }`}
+                          >
+                            <span className={`text-xs font-medium ${isActive ? "text-primary font-bold" : "text-gray-700"}`}>
+                              {formatParameterName(param)}
+                            </span>
+                            <span className={`text-xs font-mono font-semibold ${isActive ? "text-primary" : "text-gray-800"}`}>
+                              {formatParameterValue(value, param)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {weatherInfo && !activeDataLayer && (
+                    <div className="mt-3 pt-3 border-t-2 border-blue-200">
+                      <div className="text-xs font-semibold text-blue-700 mb-3 flex items-center space-x-2">
+                        <CloudRain className="h-3 w-3" />
+                        <span>Weather Information</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="flex justify-between p-2 bg-blue-50/80 rounded-lg">
+                          <span>Max Temp:</span>
+                          <span className="font-mono font-semibold text-blue-800">{weatherInfo.avg_annual_max_temperature_c}</span>
+                        </div>
+                        <div className="flex justify-between p-2 bg-blue-50/80 rounded-lg">
+                          <span>Min Temp:</span>
+                          <span className="font-mono font-semibold text-blue-800">{weatherInfo.avg_annual_min_temperature_c}</span>
+                        </div>
+                        <div className="flex justify-between col-span-2 p-2 bg-blue-50/80 rounded-lg">
+                          <span>Precipitation:</span>
+                          <span className="font-mono font-semibold text-blue-800">{weatherInfo.avg_annual_precipitation_mm_day} </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!weatherInfo && !allParameters && (
+                    <div className="text-xs text-gray-600 bg-gray-50/80 p-2 rounded-lg text-center">
+                      Click to select this {activeMapLevel}
+                    </div>
+                  )}
+                </div>
+              )
+            })()
+          )}
+
+          {hoveredStation && (
+            (() => {
+              const station = stations.find((s) => s.id === hoveredStation)
+              if (!station || !station.geometry?.coordinates) return null
+
+              return (
+                <div>
+                  <div className="flex items-center space-x-2 mb-2 bg-gradient-to-r from-green-50 to-transparent px-2 py-1 rounded-lg -mx-2">
+                    <MapPin className="h-3 w-3 text-green-600" />
+                    <span className="font-bold text-green-800">Weather Station #{station.gid}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div>
+                      <span className="font-semibold text-green-700">Coordinates:</span>
+                    </div>
+                    <div className="text-xs text-green-800 ml-2 font-mono bg-green-50/80 p-1.5 rounded">
+                      Lat: {station.geometry.coordinates[1].toFixed(4)}°<br />
+                      Lng: {station.geometry.coordinates[0].toFixed(4)}°
+                    </div>
+                  </div>
+                </div>
+              )
+            })()
+          )}
+
+          {hoveredLand && (
+            (() => {
+              const land = agricultureLands.find((l) => l.id === hoveredLand)
+              if (!land) return null
+
+              return (
+                <div>
+                  <div className="font-bold text-orange-900 text-sm mb-2 bg-gradient-to-r from-orange-50 to-transparent px-2 py-1 rounded-lg -mx-2">
+                    {land.name}
+                  </div>
+                  <div className="text-orange-700 font-bold mb-2 flex items-center space-x-1">
+                    <Wheat className="h-3 w-3" />
+                    <span>Agricultural Land</span>
+                  </div>
+                  <div className="space-y-2 text-gray-700">
+                    <div className="flex justify-between p-1.5 bg-orange-50/80 rounded">
+                      <span>Area:</span>
+                      <span className="font-mono font-semibold text-orange-800">{land.land_size}</span>
+                    </div>
+                    <div className="flex justify-between p-1.5 bg-orange-50/80 rounded">
+                      <span>Type:</span>
+                      <span className="capitalize font-semibold text-orange-800">{land.soil_type}</span>
+                    </div>
+                    <div className="flex justify-between p-1.5 bg-orange-50/80 rounded">
+                      <span>Coordinates:</span>
+                      <span className="font-mono text-xs font-semibold text-orange-800">
+                        {land.geometry.coordinates[0].toFixed(3)}, {land.geometry.coordinates[1].toFixed(3)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()
+          )}
+        </div>
+      )}
 
       {/* Map Container */}
       <div
@@ -850,39 +937,22 @@ export function EthiopiaMap({
         >
           {/* Administrative Boundaries */}
           {overlayLayers.boundaries &&
-            features.map((feature) => {
+            sortedFeatures.map((feature) => {
               const pathData = geometryToPath(feature.geometry)
               if (!pathData) return null
 
-              let weatherInfo: WeatherData | undefined
-              let agriculturalInfo: any = null
-
-              if (activeMapLevel === "region") {
-                weatherInfo = weatherData.find((data) => data.adm1_pcode === feature.code)
-                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm1_pcode === feature.code)
-              } else if (activeMapLevel === "zone") {
-                weatherInfo = weatherData.find((data) => data.adm2_pcode === feature.code)
-                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm2_pcode === feature.code)
-              } else if (activeMapLevel === "woreda") {
-                weatherInfo = weatherData.find((data) => data.adm3_pcode === feature.code)
-                agriculturalInfo = activeDataLayer?.data.find((data) => data.adm3_pcode === feature.code)
-              }
-
-              const isHovered = hoveredFeature === feature.code
-
               return (
                 <g key={feature.gid}>
-                  {/* Polygon */}
                   <path
                     d={pathData}
                     fill={getFeatureColor(feature)}
                     stroke={getFeatureStroke(feature)}
                     strokeWidth={getFeatureStrokeWidth(feature)}
-                    fillOpacity={isHovered ? 0.9 : layerOpacity.boundaries || 0.8}
+                    fillOpacity={hoveredFeature === feature.code ? 0.9 : layerOpacity.boundaries || 0.8}
                     className="transition-all duration-200 cursor-pointer hover:brightness-110"
                     style={{
-                      filter: isHovered ? "drop-shadow(0 4px 8px rgba(0,0,0,0.2))" : "none",
-                      transform: isHovered ? "scale(1.01)" : "scale(1)",
+                      filter: hoveredFeature === feature.code ? "drop-shadow(0 8px 16px rgba(0,0,0,0.3))" : "none",
+                      transform: hoveredFeature === feature.code ? "scale(1.01)" : "scale(1)",
                       transformOrigin: "center",
                     }}
                     onMouseEnter={() => handleFeatureInteraction(feature, true)}
@@ -892,10 +962,8 @@ export function EthiopiaMap({
                     onTouchEnd={() => handleFeatureInteraction(feature, false)}
                   />
 
-                  {/* Precipitation Icon */}
                   {showPrecipitationIcons &&
                     weatherParameter === "precipitation" &&
-                    weatherInfo &&
                     (() => {
                       const iconSize = getPrecipitationIconSize(feature)
                       if (iconSize === 0) return null
@@ -920,115 +988,11 @@ export function EthiopiaMap({
                         </g>
                       )
                     })()}
-
-                  {/* Enhanced Tooltip */}
-                  {hoveredFeature === feature.code &&
-                    (() => {
-                      const bounds = feature.geometry?.coordinates?.[0]
-                      if (!bounds) return null
-
-                      // Compute center of polygon
-                      let centerLng = 0,
-                        centerLat = 0
-                      bounds.forEach(([lng, lat]: [number, number]) => {
-                        centerLng += lng
-                        centerLat += lat
-                      })
-                      centerLng /= bounds.length
-                      centerLat /= bounds.length
-
-                      const centerPoint = projectPoint(centerLng, centerLat)
-                      const tooltipPos = getSafeTooltipPosition(centerPoint, 280, 200)
-
-                      // Determine tooltip name
-                      let featureName = ""
-                      if (activeMapLevel === "region") featureName = weatherInfo?.adm1_en || feature.name
-                      else if (activeMapLevel === "zone") featureName =  feature.name
-                      else if (activeMapLevel === "woreda") featureName = feature.name
-
-                      const activeLayer = getActiveDataLayer()
-                      const allParameters = activeLayer ? getAllParametersForFeature(feature, activeLayer) : null
-
-                      return (
-                        <foreignObject
-                          x={tooltipPos.x}
-                          y={tooltipPos.y}
-                          width="280"
-                          height="200"
-                          style={{ pointerEvents: "none", zIndex: 5000 }}
-                        >
-                          <div className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-2xl text-sm border border-gray-200 animate-in fade-in-0 zoom-in-95 duration-200">
-                            <div className="font-bold text-gray-900 text-base mb-2 border-b pb-2">{featureName}</div>
-
-                            {allParameters && (
-                              <div className="space-y-2">
-                                <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                                  {activeLayer && activeLayer.type === "land"
-                                    ? "Land Data"
-                                    : activeLayer && activeLayer.type === "crop"
-                                      ? "Crop Production"
-                                      : activeLayer && activeLayer.type === "pest"
-                                        ? "Pest Data"
-                                        : "Weather Data"}
-                                </div>
-                                {Object.entries(allParameters).map(([param, value]) => {
-                                  const isActive = activeLayer && param === activeLayer.parameter
-                                  return (
-                                    <div
-                                      key={param}
-                                      className={`flex justify-between items-center p-2 rounded-lg ${
-                                        isActive ? "bg-blue-100 border-l-4 border-blue-500" : "bg-gray-50"
-                                      }`}
-                                    >
-                                      <span
-                                        className={`text-xs ${isActive ? "font-bold text-blue-900" : "text-gray-700"}`}
-                                      >
-                                        {formatParameterName(param)}
-                                      </span>
-                                      <span
-                                        className={`text-xs font-mono ${isActive ? "text-blue-800" : "text-gray-600"}`}
-                                      >
-                                        {formatParameterValue(value, param)}
-                                      </span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-
-                            {/* Weather data display */}
-                            {weatherInfo && !activeDataLayer && (
-                              <div className="mt-3 pt-2 border-t">
-                                <div className="text-xs font-semibold text-gray-600 mb-2">Weather Information</div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <div className="flex justify-between">
-                                    <span>Max Temp:</span>
-                                    <span className="font-mono">{weatherInfo.avg_annual_max_temperature_c}°C</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Min Temp:</span>
-                                    <span className="font-mono">{weatherInfo.avg_annual_min_temperature_c}°C</span>
-                                  </div>
-                                  <div className="flex justify-between col-span-2">
-                                    <span>Precipitation:</span>
-                                    <span className="font-mono">{weatherInfo.avg_annual_precipitation_mm_day}mm</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Show basic info if no data available */}
-                            {!weatherInfo && !agriculturalInfo && (
-                              <div className="text-xs text-gray-500">Click to select this {activeMapLevel}</div>
-                            )}
-                          </div>
-                        </foreignObject>
-                      )
-                    })()}
                 </g>
               )
             })}
-{showStations &&
+
+          {showStations &&
             stations.map((station) => {
               const coords = station.geometry?.coordinates
               if (!coords || coords.length !== 2) return null
@@ -1053,32 +1017,6 @@ export function EthiopiaMap({
                     }}
                     onMouseLeave={() => setHoveredStation(null)}
                   />
-
-                  {isHovered && (
-                    <foreignObject
-                      x={point.x + 15}
-                      y={point.y - 60}
-                      width="200"
-                      height="120"
-                      style={{ pointerEvents: "none", zIndex: 5000 }}
-                    >
-                      <div className="bg-white p-3 rounded-lg shadow-lg text-xs border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <MapPin className="h-3 w-3 text-green-600" />
-                          <span className="font-semibold text-gray-800">Weather Station #{station.gid}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-medium">Coordinates:</span>
-                          </div>
-                          <div className="text-xs text-gray-600 ml-2">
-                            Lat: {coords[1].toFixed(4)}°<br />
-                            Lng: {coords[0].toFixed(4)}°
-                          </div>
-                        </div>
-                      </div>
-                    </foreignObject>
-                  )}
                 </g>
               )
             })}
@@ -1104,38 +1042,13 @@ export function EthiopiaMap({
                     onClick={() => onLandSelect?.(land)}
                     onTouchStart={() => setHoveredLand(land.id)}
                     onTouchEnd={() => setHoveredLand(null)}
+                    onMouseEnter={() => {
+                      setHoveredLand(land.id)
+                      setHoveredFeature(null)
+                      setHoveredStation(null)
+                    }}
+                    onMouseLeave={() => setHoveredLand(null)}
                   />
-
-                  {isHovered && (
-                    <foreignObject
-                      x={Math.max(0, Math.min(point.x + 15, mapWidth - 220))}
-                      y={Math.max(10, Math.min(point.y - 80, mapHeight - 120))}
-                      width="220"
-                      height="120"
-                      style={{ pointerEvents: "none", zIndex: 5000 }}
-                    >
-                      <div className="bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-2xl text-xs border border-orange-200 animate-in fade-in-0 zoom-in-95 duration-200">
-                        <div className="font-bold text-orange-900 text-sm mb-2">{land.name}</div>
-                        <div className="text-orange-700 font-medium mb-2">Agricultural Land</div>
-                        <div className="space-y-1 text-gray-600">
-                          <div className="flex justify-between">
-                            <span>Area:</span>
-                            <span className="font-mono">{land.geometry.coordinates[0].toLocaleString()} ha</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Type:</span>
-                            <span className="capitalize">{land.soil_type}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Coordinates:</span>
-                            <span className="font-mono text-xs">
-                              {land.geometry.coordinates[0].toFixed(3)}, {land.geometry.coordinates[1].toFixed(3)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </foreignObject>
-                  )}
                 </g>
               )
             })}

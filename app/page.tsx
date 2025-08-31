@@ -884,6 +884,7 @@ useEffect(() => {
                   landParameter={landParameter}
                   cropParameter={cropParameter}
                   pestParameter={pestParameter}
+                  key={`${activeMapLevel}-${selectedYear}-${landLayerEnabled}-${cropProductionLayerEnabled}-${pestDataLayerEnabled}-${showWeatherData}`}
                 />
               )}
             </CardContent>
