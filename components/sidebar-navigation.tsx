@@ -70,7 +70,7 @@ const sidebarItems: SidebarItem[] = [
     icon: CloudRain,
     children: [
       { id: "weather-controls", title: "Weather Controls", icon: Thermometer },
-      { id: "weather-stations", title: "Weather Stations", icon: Radio },
+
     ],
   },
   {
@@ -79,7 +79,7 @@ const sidebarItems: SidebarItem[] = [
     icon: Sprout,
     children: [
       { id: "land-controls", title: "Land Controls", icon: Sprout },
-      { id: "land-parameters", title: "Parameters", icon: Settings },
+     
     ],
   },
   {
@@ -88,7 +88,7 @@ const sidebarItems: SidebarItem[] = [
     icon: BarChart3,
     children: [
       { id: "crop-controls", title: "Crop Controls", icon: BarChart3 },
-      { id: "crop-parameters", title: "Parameters", icon: Wheat },
+    
     ],
   },
   {
@@ -97,7 +97,7 @@ const sidebarItems: SidebarItem[] = [
     icon: Bug,
     children: [
       { id: "pest-controls", title: "Pest Controls", icon: Bug },
-      { id: "pest-parameters", title: "Parameters", icon: Settings },
+      
     ],
   },
   {
@@ -368,9 +368,9 @@ const renderWeatherControls = () => (
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="total_agri_land">Total Agricultural Land</SelectItem>
-                <SelectItem value="plowed">Plowed Land</SelectItem>
-                <SelectItem value="sowed">Sowed Land</SelectItem>
-                <SelectItem value="harvested">Harvested Land</SelectItem>
+                <SelectItem value="plowed_area">Plowed Land</SelectItem>
+                <SelectItem value="sowed_land">Sowed Land</SelectItem>
+                <SelectItem value="harvested_land">Harvested Land</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -450,7 +450,7 @@ const renderWeatherControls = () => (
                 <SelectItem value="wheat_production_mt">Wheat Production (MT)</SelectItem>
                 <SelectItem value="barley_production_mt">Barley Production (MT)</SelectItem>
                 <SelectItem value="maize_production_mt">Maize Production (MT)</SelectItem>
-                <SelectItem value="sorghum_production_mt">Sorghum Production (MT)</SelectItem>
+              
               </SelectContent>
             </Select>
           </div>
@@ -528,8 +528,8 @@ const renderWeatherControls = () => (
               <SelectContent>
                 <SelectItem value="pest_incidence">Pest Incidence (%)</SelectItem>
                 <SelectItem value="affected_area_ha">Affected Area (ha)</SelectItem>
-                <SelectItem value="severity_level">Severity Level</SelectItem>
-                <SelectItem value="yield_loss">Yield Loss (%)</SelectItem>
+                <SelectItem value="crop_loss_tons">Crop Loss (Tons)</SelectItem>
+                <SelectItem value="pest_control_cost_etb">Control Cost (ETB)</SelectItem>
               </SelectContent>
             </Select>
           </div>

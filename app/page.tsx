@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { MainLayout, useMapSelection } from "@/components/main-layout"
 import { EthiopiaMap } from "@/components/ethiopia-map"
-import { MapLevelIndicator } from "@/components/map-level-indicator"
+// import { MapLevelIndicator } from "@/components/map-level-indicator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -318,18 +318,18 @@ function MapContent({
     }
   }
 
-  const getParameterTitle = () => {
-    switch (activeWeatherDataSource) {
-      case "r_weather_data":
-        return "Maximum Temperature (°C)"
-      case "z_weather_data":
-        return "Minimum Temperature (°C)"
-      case "w_weather_data":
-        return "Precipitation (mm/day)"
-      default:
-        return "Temperature Data"
-    }
-  }
+  // const getParameterTitle = () => {
+  //   switch (activeWeatherDataSource) {
+  //     case "r_weather_data":
+  //       return "Maximum Temperature (°C)"
+  //     case "z_weather_data":
+  //       return "Minimum Temperature (°C)"
+  //     case "w_weather_data":
+  //       return "Precipitation (mm/day)"
+  //     default:
+  //       return "Temperature Data"
+  //   }
+  // }
 
   const getActiveDataForView = useMemo(() => {
     console.log(
@@ -382,7 +382,7 @@ function MapContent({
       return {
         data: weatherData,
         type: "weather",
-        title: `${getParameterTitle()} - ${selectedYear}`,
+        title: `Weather Data - ${weatherParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`,
         icon: <Thermometer className="h-4 w-4 text-blue-600" />,
         color: "blue",
       }
@@ -616,7 +616,7 @@ useEffect(() => {
   return (
     <div className="h-full p-4 space-y-4 pr-6">
       {/* Map Level Indicator */}
-      <MapLevelIndicator />
+     
 
       <Card>
         <CardHeader className="pb-3">
@@ -803,7 +803,7 @@ useEffect(() => {
                       : landLayerEnabled && landData.length > 0
                         ? `Land Data - ${landParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`
                         : showWeatherData && activeWeatherDataSource
-                          ? `${getParameterTitle()} - ${selectedYear}`
+                           ? `Weather Data - ${weatherParameter.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${selectedYear}`
                           : `${activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Administrative Boundaries`}
                 </span>
               </CardTitle>
