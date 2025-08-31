@@ -583,11 +583,23 @@ export function EthiopiaMap({
   const formatParameterValue = useCallback((value: any, param: string) => {
     if (value === null || value === undefined) return "N/A"
     if (typeof value === "number") {
-      if (param.includes("_ha") || param.includes("_land")) return `${value.toLocaleString()} ha`
-      if (param.includes("_mt")) return `${value.toLocaleString()} MT`
+      // Land parameters
+      if (param.includes("_ha") || param.includes("_land") || param === "plowed_area" || 
+          param === "sowed_land" || param === "harvested_land" || param === "affected_area_ha") {
+        return `${value.toLocaleString()} ha`
+      }
+      // Crop production parameters
+      if (param.includes("_mt") || param.includes("production") || param === "crop_loss_tons") {
+        return `${value.toLocaleString()} MT`
+      }
+      // Temperature parameters
       if (param.includes("temp")) return `${value}°C`
+      // Precipitation parameters
       if (param.includes("precipitation")) return `${value} mm`
+      // Cost parameters
       if (param.includes("cost")) return `${value.toLocaleString()} ETB`
+      // Pest incidence
+      if (param.includes("incidence")) return `${value.toLocaleString()}%`
       return value.toLocaleString()
     }
     return String(value)
@@ -827,17 +839,41 @@ export function EthiopiaMap({
                         <span>Weather Information</span>
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div className="flex justify-between p-2 bg-blue-50/80 rounded-lg">
+                        <div className={`flex justify-between p-2 rounded-lg ${
+                          weatherParameter === "max_temp" 
+                            ? "bg-blue-100 border-l-4 border-blue-500" 
+                            : "bg-blue-50/80"
+                        }`}>
                           <span>Max Temp:</span>
-                          <span className="font-mono font-semibold text-blue-800">{weatherInfo.avg_annual_max_temperature_c}</span>
+                          <span className={`font-mono font-semibold ${
+                            weatherParameter === "max_temp" ? "text-blue-800 font-bold" : "text-blue-800"
+                          }`}>
+                            {weatherInfo.avg_annual_max_temperature_c}°C
+                          </span>
                         </div>
-                        <div className="flex justify-between p-2 bg-blue-50/80 rounded-lg">
+                        <div className={`flex justify-between p-2 rounded-lg ${
+                          weatherParameter === "min_temp" 
+                            ? "bg-blue-100 border-l-4 border-blue-500" 
+                            : "bg-blue-50/80"
+                        }`}>
                           <span>Min Temp:</span>
-                          <span className="font-mono font-semibold text-blue-800">{weatherInfo.avg_annual_min_temperature_c}</span>
+                          <span className={`font-mono font-semibold ${
+                            weatherParameter === "min_temp" ? "text-blue-800 font-bold" : "text-blue-800"
+                          }`}>
+                            {weatherInfo.avg_annual_min_temperature_c}°C
+                          </span>
                         </div>
-                        <div className="flex justify-between col-span-2 p-2 bg-blue-50/80 rounded-lg">
+                        <div className={`flex justify-between col-span-2 p-2 rounded-lg ${
+                          weatherParameter === "precipitation" 
+                            ? "bg-blue-100 border-l-4 border-blue-500" 
+                            : "bg-blue-50/80"
+                        }`}>
                           <span>Precipitation:</span>
-                          <span className="font-mono font-semibold text-blue-800">{weatherInfo.avg_annual_precipitation_mm_day} </span>
+                          <span className={`font-mono font-semibold ${
+                            weatherParameter === "precipitation" ? "text-blue-800 font-bold" : "text-blue-800"
+                          }`}>
+                            {weatherInfo.avg_annual_precipitation_mm_day} mm
+                          </span>
                         </div>
                       </div>
                     </div>

@@ -4,9 +4,12 @@ import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'MOA',
+  title: 'Ministry of Agriculture',
   description: 'Created BY KUKUNET',
   generator: 'MOA',
+  icons: {
+    icon: '/moe.webp', // Replace with the path to your logo file
+  },
 }
 
 export default function RootLayout({

@@ -243,10 +243,10 @@ function MapContent({
       const data = await response.json()
       if (data.success) {
         setLandData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} land records for ${activeMapLevel} level`)
+        console.log(` Loaded ${data.data.length} land records for ${activeMapLevel} level`)
       }
     } catch (err) {
-      console.error("[v0] Error fetching land data:", err)
+      console.error(" Error fetching land data:", err)
     } finally {
       setLandLoading(false)
     }
@@ -272,10 +272,10 @@ function MapContent({
       const data = await response.json()
       if (data.success) {
         setCropProductionData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} crop production records for ${activeMapLevel} level`)
+        console.log(` Loaded ${data.data.length} crop production records for ${activeMapLevel} level`)
       }
     } catch (err) {
-      console.error("[v0] Error fetching crop production data:", err)
+      console.error(" Error fetching crop production data:", err)
     } finally {
       setCropProductionLoading(false)
     }
@@ -301,18 +301,18 @@ function MapContent({
       const data = await response.json()
       if (data.success) {
         setPestData(data.data)
-        console.log(`[v0] Loaded ${data.data.length} pest data records for ${activeMapLevel} level - ${year}`)
+        console.log(` Loaded ${data.data.length} pest data records for ${activeMapLevel} level - ${year}`)
         if (data.data.length > 0) {
           const totalIncidence = data.data.reduce(
             (sum: number, item: any) => sum + (Number.parseFloat(item.pest_incidence) || 0),
             0,
           )
           const avgIncidence = totalIncidence / data.data.length
-          console.log(`[v0] Average pest incidence: ${avgIncidence.toFixed(2)}%`)
+          console.log(` Average pest incidence: ${avgIncidence.toFixed(2)}%`)
         }
       }
     } catch (err) {
-      console.error("[v0] Error fetching pest data:", err)
+      console.error(" Error fetching pest data:", err)
     } finally {
       setPestLoading(false)
     }
@@ -333,7 +333,7 @@ function MapContent({
 
   const getActiveDataForView = useMemo(() => {
     console.log(
-      "[v0] Determining active data for view - pestDataLayerEnabled:",
+      " Determining active data for view - pestDataLayerEnabled:",
       pestDataLayerEnabled,
       "cropProductionLayerEnabled:",
       cropProductionLayerEnabled,
@@ -345,7 +345,7 @@ function MapContent({
 
     // Priority order: Pest Data > Crop Production > Land Data > Weather Data
     if (pestDataLayerEnabled && pestData.length > 0) {
-      console.log("[v0] Using pest data for view:", pestData.length, "records")
+      console.log(" Using pest data for view:", pestData.length, "records")
       return {
         data: pestData,
         type: "pest",
@@ -356,7 +356,7 @@ function MapContent({
     }
 
     if (cropProductionLayerEnabled && cropProductionData.length > 0) {
-      console.log("[v0] Using crop production data for view:", cropProductionData.length, "records")
+      console.log(" Using crop production data for view:", cropProductionData.length, "records")
       return {
         data: cropProductionData,
         type: "crop",
@@ -367,7 +367,7 @@ function MapContent({
     }
 
     if (landLayerEnabled && landData.length > 0) {
-      console.log("[v0] Using land data for view:", landData.length, "records")
+      console.log(" Using land data for view:", landData.length, "records")
       return {
         data: landData,
         type: "land",
@@ -378,7 +378,7 @@ function MapContent({
     }
 
     if (showWeatherData && activeWeatherDataSource) {
-      console.log("[v0] Using weather data for view:", weatherData.length, "records")
+      console.log(" Using weather data for view:", weatherData.length, "records")
       return {
         data: weatherData,
         type: "weather",
@@ -388,7 +388,7 @@ function MapContent({
       }
     }
 
-    console.log("[v0] No active data layer found")
+    console.log(" No active data layer found")
     return null
   }, [
     pestDataLayerEnabled,
@@ -409,28 +409,28 @@ function MapContent({
   const filteredDataForView = useMemo(() => {
     const activeData = getActiveDataForView
     if (!activeData || !activeData.data) {
-      console.log("[v0] No active data for filtering")
+      console.log(" No active data for filtering")
       return []
     }
 
     let data = activeData.data
-    console.log("[v0] Filtering data:", data.length, "records of type:", activeData.type)
+    console.log(" Filtering data:", data.length, "records of type:", activeData.type)
 
     if (activeWeatherDataSource === "w_weather_data") {
       data = data.filter((item: any) => item.adm2_pcode !== null)
-      console.log("[v0] After woreda filter:", data.length, "records")
+      console.log(" After woreda filter:", data.length, "records")
     }
 
     if (searchQuery) {
       data = data.filter((item: any) =>
         Object.values(item).some((value) => String(value).toLowerCase().includes(searchQuery.toLowerCase())),
       )
-      console.log("[v0] After search filter:", data.length, "records")
+      console.log(" After search filter:", data.length, "records")
     }
 
     if (selectedRegions.length > 0) {
       data = data.filter((item: any) => selectedRegions.includes(item.adm1_pcode))
-      console.log("[v0] After region filter:", data.length, "records")
+      console.log(" After region filter:", data.length, "records")
     }
 
     return data

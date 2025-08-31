@@ -10,36 +10,12 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { useMapSelection } from "@/components/main-layout"
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ScatterChart,
-  Scatter,
-} from "recharts"
-import {
-  BarChart3,
-  LineChartIcon,
-  PieChartIcon,
-  TrendingUp,
-  Download,
-  ScanTextIcon as ScatterIcon,
-  AreaChartIcon,
-  Search,
-  MapPin,
-} from "lucide-react"
+import { Download, Search, MapPin, Filter, ImageIcon } from "lucide-react"
+import { ResponsiveBar } from '@nivo/bar'
+import { ResponsiveLine } from '@nivo/line'
+import { ResponsivePie } from '@nivo/pie'
+import { ResponsiveScatterPlot } from '@nivo/scatterplot'
+// import { ResponsiveArea } from '@nivo/area'
 
 interface DataChartsProps {
   landData?: any[]
@@ -52,25 +28,15 @@ interface DataChartsProps {
 }
 
 const chartTypes = [
-  { value: "bar", label: "Bar Chart", icon: BarChart3 },
-  { value: "line", label: "Line Chart", icon: LineChartIcon },
-  { value: "area", label: "Area Chart", icon: AreaChartIcon },
-  { value: "pie", label: "Pie Chart", icon: PieChartIcon },
-  { value: "scatter", label: "Scatter Plot", icon: ScatterIcon },
+  { value: "bar", label: "Bar Chart" },
+  { value: "line", label: "Line Chart" },
+  { value: "pie", label: "Pie Chart" },
+  { value: "scatter", label: "Scatter Plot" },
+  // { value: "area", label: "Area Chart" },
+  { value: "clustered", label: "Clustered Bar" },
 ]
 
-const colors = [
-  "#8884d8",
-  "#82ca9d",
-  "#ffc658",
-  "#ff7300",
-  "#8dd1e1",
-  "#d084d0",
-  "#ffb347",
-  "#ff6b6b",
-  "#4ecdc4",
-  "#45b7d1",
-]
+const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
 export function DataCharts({
   landData = [],
@@ -86,36 +52,47 @@ export function DataCharts({
   const [yAxes, setYAxes] = useState<string[]>([])
   const [filterYear, setFilterYear] = useState(selectedYear)
   const [selectedRegions, setSelectedRegions] = useState<string[]>([])
+  const [selectedZones, setSelectedZones] = useState<string[]>([])
+  const [selectedWoredas, setSelectedWoredas] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [maxDisplayItems, setMaxDisplayItems] = useState(15)
+  const [maxDisplayItems, setMaxDisplayItems] = useState(14)
 
+  // Get all available years from data
+  const availableYears = useMemo(() => {
+    const years = new Set<string>()
+    
+    // Add years from all data sources
+    landData.forEach(item => years.add(String(item.year)))
+    cropProductionData.forEach(item => years.add(String(item.year)))
+    pestData.forEach(item => years.add(String(item.year)))
+    weatherData.forEach(item => years.add(String(item.year)))
+    
+    return Array.from(years).sort().reverse()
+  }, [landData, cropProductionData, pestData, weatherData])
+
+  // Determine which data to use based on active layers
   const availableData = useMemo(() => {
-    console.log("[v0] Processing chart data for level:", activeMapLevel, "Active layers:", activeDataLayers)
-
-    // Priority: Pest > Crop > Land > Weather (same as data view)
+    // Priority: Pest > Crop > Land > Weather
     if (activeDataLayers.includes("Pest Data") && pestData.length > 0) {
-      console.log("[v0] Using pest data for charts:", pestData.length, "records")
       return pestData.map((item) => ({ ...item, dataType: "pest" }))
     }
 
     if (activeDataLayers.includes("Crop Production") && cropProductionData.length > 0) {
-      console.log("[v0] Using crop production data for charts:", cropProductionData.length, "records")
       return cropProductionData.map((item) => ({ ...item, dataType: "crop" }))
     }
 
     if (activeDataLayers.includes("Land Data") && landData.length > 0) {
-      console.log("[v0] Using land data for charts:", landData.length, "records")
       return landData.map((item) => ({ ...item, dataType: "land" }))
     }
 
     if (activeDataLayers.includes("Weather Data") && weatherData.length > 0) {
-      console.log("[v0] Using weather data for charts:", weatherData.length, "records")
       return weatherData.map((item) => ({ ...item, dataType: "weather" }))
     }
 
     return []
-  }, [activeDataLayers, landData, cropProductionData, pestData, weatherData, activeMapLevel])
+  }, [activeDataLayers, landData, cropProductionData, pestData, weatherData])
 
+  // Get X-axis field based on map level
   const xAxisField = useMemo(() => {
     switch (activeMapLevel) {
       case "region":
@@ -129,166 +106,268 @@ export function DataCharts({
     }
   }, [activeMapLevel])
 
+  // Get parent field for filtering
+  const parentField = useMemo(() => {
+    switch (activeMapLevel) {
+      case "zone":
+        return "adm1_pcode"
+      case "woreda":
+        return "adm2_pcode"
+      default:
+        return ""
+    }
+  }, [activeMapLevel])
+
+  // Get available fields for Y-axis
   const availableFields = useMemo(() => {
-    if (availableData.length === 0) return { numeric: [], administrative: [] }
+    if (availableData.length === 0) return []
 
     const sample = availableData[0]
-    const numericFields = Object.keys(sample).filter(
-      (key) =>
-        key !== "id" &&
-        key !== "gid" &&
-        key !== "dataType" &&
-        key !== "year" &&
-        !key.includes("pcode") &&
-        typeof sample[key] === "number",
-    )
-
-    const administrativeFields = Object.keys(sample).filter(
-      (key) => key === "adm1_en" || key === "adm2_en" || key === "adm3_en",
-    )
-
-    console.log("[v0] Available numeric fields:", numericFields)
-    console.log("[v0] Available administrative fields:", administrativeFields)
-
-    return { numeric: numericFields, administrative: administrativeFields }
-  }, [availableData])
-
-  useEffect(() => {
-    if (availableData.length === 0) return
-
-    const dataType = availableData[0]?.dataType
-    let defaultYAxes: string[] = []
-
+    const dataType = sample.dataType
+    
+    // Define available fields based on data type
+    let fields: string[] = []
+    
     switch (dataType) {
+      case "weather":
+        fields = ["avg_annual_min_temperature_c", "avg_annual_max_temperature_c", "avg_annual_precipitation_mm_day"]
+        break
       case "land":
-        defaultYAxes = ["total_agri_land", "cultivated_land", "pasture_land", "forest_land"]
+        fields = ["harvested_land", "sowed_land", "plowed_area", "total_agri_land"]
         break
       case "crop":
-        defaultYAxes = ["teff_production_mt", "maize_production_mt", "wheat_production_mt", "barley_production_mt"]
+        fields = ["barley_production_mt", "wheat_production_mt", "maize_production_mt", "teff_production_mt"]
         break
       case "pest":
-        defaultYAxes = ["pest_incidence", "crop_damage", "treatment_coverage", "yield_loss"]
-        break
-      case "weather":
-        defaultYAxes = [
-          "avg_annual_max_temperature_c",
-          "avg_annual_min_temperature_c",
-          "avg_annual_precipitation_mm_day",
-        ]
+        fields = ["pest_control_cost_etb", "crop_loss_tons", "affected_area_ha", "pest_incidence"]
         break
     }
+    
+    // Filter to only include fields that exist in the data
+    return fields.filter(field => field in sample)
+  }, [availableData])
 
-    // Filter to only include available fields and limit to 3
-    const validYAxes = defaultYAxes.filter((axis) => availableFields.numeric.includes(axis)).slice(0, 3)
-    setYAxes(validYAxes)
-    console.log("[v0] Auto-selected Y axes:", validYAxes)
-  }, [availableData, availableFields])
-
-  const filteredAndLimitedData = useMemo(() => {
-    let data = availableData
-
-    // Filter by year if different from selected
-    if (filterYear !== selectedYear) {
-      data = data.filter((item) => String(item.year) === filterYear)
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      data = data.filter((item) => {
-        const searchableValue = item[xAxisField]
-        return searchableValue && String(searchableValue).toLowerCase().includes(searchQuery.toLowerCase())
-      })
-    }
-
-    // Filter by selected regions (for zone/woreda levels)
-    if (selectedRegions.length > 0) {
-      if (activeMapLevel === "zone") {
-        data = data.filter((item) => selectedRegions.includes(item.adm1_pcode))
-      } else if (activeMapLevel === "woreda") {
-        data = data.filter((item) => selectedRegions.includes(item.adm2_pcode))
+  // Get unique regions/zones/woredas for selection
+  const availableItems = useMemo(() => {
+    if (availableData.length === 0) return []
+    
+    const uniqueItems = new Map()
+    
+    availableData.forEach(item => {
+      const key = item[xAxisField]
+      const code = item[parentField] || item.adm1_pcode || item.adm2_pcode || item.adm3_pcode
+      if (key && !uniqueItems.has(key)) {
+        uniqueItems.set(key, {
+          name: key,
+          code: code || key,
+          parent: item.adm1_en || item.adm2_en || ""
+        })
       }
-    }
+    })
+    
+    return Array.from(uniqueItems.values())
+  }, [availableData, xAxisField, parentField])
 
-    // Sort by the first Y-axis value for consistent ordering
-    if (yAxes.length > 0) {
-      data = data.sort((a, b) => {
-        const aVal = a[yAxes[0]] || 0
-        const bVal = b[yAxes[0]] || 0
-        return bVal - aVal // Descending order
-      })
-    }
+  // Filter available items based on search query
+  const filteredAvailableItems = useMemo(() => {
+    if (!searchQuery) return availableItems
+    
+    return availableItems.filter(item => 
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.parent && item.parent.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+  }, [availableItems, searchQuery])
 
-    // Limit display items for zone and woreda levels
-    if (activeMapLevel === "zone" || activeMapLevel === "woreda") {
-      data = data.slice(0, maxDisplayItems)
-    }
-
-    console.log("[v0] Filtered and limited data:", data.length, "records")
-    return data
-  }, [
-    availableData,
-    filterYear,
-    selectedYear,
-    searchQuery,
-    selectedRegions,
-    activeMapLevel,
-    xAxisField,
-    yAxes,
-    maxDisplayItems,
-  ])
-
+  // Get parent regions for zone/woreda filtering
   const availableParentRegions = useMemo(() => {
     if (activeMapLevel === "region") return []
-
-    const parentField = activeMapLevel === "zone" ? "adm1_pcode" : "adm2_pcode"
-    const parentNameField = activeMapLevel === "zone" ? "adm1_en" : "adm2_en"
-
-    const uniqueParents = [
-      ...new Set(
-        availableData.map((item) => ({
-          code: item[parentField],
-          name: item[parentNameField],
-        })),
-      ),
-    ]
-
-    return uniqueParents.filter((parent) => parent.code && parent.name)
+    
+    const uniqueRegions = new Map()
+    
+    availableData.forEach(item => {
+      if (item.adm1_en && item.adm1_pcode) {
+        uniqueRegions.set(item.adm1_pcode, {
+          code: item.adm1_pcode,
+          name: item.adm1_en
+        })
+      }
+    })
+    
+    return Array.from(uniqueRegions.values())
   }, [availableData, activeMapLevel])
 
+  // Auto-select Y-axes when data changes
+  useEffect(() => {
+    if (availableFields.length > 0 && yAxes.length === 0) {
+      // Select first 3 available fields by default
+      setYAxes(availableFields.slice(0, 3))
+    }
+  }, [availableFields, yAxes.length])
+
+  // Filter and prepare data for charts
   const chartData = useMemo(() => {
-    return filteredAndLimitedData.map((item) => {
-      const chartItem: any = {
-        name: item[xAxisField] || `Unknown ${activeMapLevel}`,
-        fullName: item[xAxisField] || `Unknown ${activeMapLevel}`,
+    if (availableData.length === 0) return []
+    
+    // Filter by year
+    let data = availableData.filter(item => String(item.year) === filterYear)
+    
+    // Filter by selected items (regions/zones/woredas)
+    let selectedItems: string[] = []
+    if (activeMapLevel === "region") selectedItems = selectedRegions
+    if (activeMapLevel === "zone") selectedItems = selectedZones
+    if (activeMapLevel === "woreda") selectedItems = selectedWoredas
+    
+    if (selectedItems.length > 0) {
+      data = data.filter(item => selectedItems.includes(item[xAxisField]))
+    }
+    
+    // Limit display items
+    if (activeMapLevel !== "region") {
+      data = data.slice(0, maxDisplayItems)
+    }
+    
+    // Group by xAxisField and aggregate Y-axis values
+    const groupedData = new Map()
+    
+    data.forEach(item => {
+      const key = item[xAxisField]
+      if (!groupedData.has(key)) {
+        groupedData.set(key, {
+          id: key,
+          ...Object.fromEntries(yAxes.map(yAxis => [yAxis, 0]))
+        })
       }
-
-      yAxes.forEach((yAxis) => {
-        chartItem[yAxis] = typeof item[yAxis] === "number" ? item[yAxis] : 0
+      
+      const group = groupedData.get(key)
+      yAxes.forEach(yAxis => {
+        if (item[yAxis] !== undefined && item[yAxis] !== null) {
+          // Extract numeric value from strings like "25°C" or "100 mm"
+          let value = item[yAxis]
+          if (typeof value === 'string') {
+            const numericMatch = value.match(/([\d.]+)/)
+            if (numericMatch) {
+              value = parseFloat(numericMatch[1])
+            } else {
+              value = parseFloat(value) || 0
+            }
+          }
+          group[yAxis] += Number(value)
+        }
       })
-
-      return chartItem
     })
-  }, [filteredAndLimitedData, xAxisField, yAxes, activeMapLevel])
+    
+    return Array.from(groupedData.values())
+  }, [
+    availableData, 
+    filterYear, 
+    activeMapLevel, 
+    selectedRegions, 
+    selectedZones, 
+    selectedWoredas, 
+    xAxisField, 
+    yAxes, 
+    maxDisplayItems
+  ])
 
+  // Prepare data for pie chart (uses first Y-axis only)
   const pieData = useMemo(() => {
-    if (yAxes.length === 0) return []
-
+    if (yAxes.length === 0 || chartData.length === 0) return []
+    
     const yAxis = yAxes[0]
-    return filteredAndLimitedData
-      .map((item, index) => ({
-        name: item[xAxisField] || `Item ${index + 1}`,
-        value: typeof item[yAxis] === "number" ? item[yAxis] : 0,
-        fullName: item[xAxisField] || `Item ${index + 1}`,
+    return chartData
+      .map(item => ({
+        id: item.id,
+        label: item.id,
+        value: item[yAxis] || 0
       }))
-      .slice(0, 10) // Limit to top 10 for readability
-  }, [filteredAndLimitedData, yAxes, xAxisField])
+      .sort((a, b) => b.value - a.value) // Sort descending
+  }, [chartData, yAxes])
 
+  // Prepare data for scatter plot (uses first two Y-axes)
+  const scatterData = useMemo(() => {
+    if (yAxes.length < 2 || chartData.length === 0) return []
+    
+    return [
+      {
+        id: "Data Points",
+        data: chartData.map(item => ({
+          x: item[yAxes[0]] || 0,
+          y: item[yAxes[1]] || 0,
+          name: item.id
+        }))
+      }
+    ]
+  }, [chartData, yAxes])
+
+  // Prepare data for area chart
+  const areaData = useMemo(() => {
+    if (yAxes.length === 0 || chartData.length === 0) return []
+    
+    return yAxes.map((yAxis, i) => ({
+      id: yAxis,
+      data: chartData.map((item, index) => ({
+        x: item.id,
+        y: item[yAxis] || 0
+      }))
+    }))
+  }, [chartData, yAxes])
+
+  // Get measurement unit for tooltips
+  const getMeasurementUnit = (field: string) => {
+    if (field.includes('temperature')) return '°C'
+    if (field.includes('precipitation')) return 'mm'
+    if (field.includes('_mt')) return 'MT'
+    if (field.includes('_ha')) return 'ha'
+    if (field.includes('_etb')) return 'ETB'
+    if (field.includes('_tons')) return 'tons'
+    if (field.includes('_land') || field.includes('_area')) return 'ha'
+    if (field.includes('incidence')) return '%'
+    return ''
+  }
+
+  // Export chart as image
+  const exportChartAsImage = () => {
+    const chartElement = document.querySelector('.nivo-chart-container')
+    if (!chartElement) return
+
+    // Create a canvas element
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Set canvas dimensions
+    canvas.width = chartElement.clientWidth
+    canvas.height = chartElement.clientHeight
+
+    // Draw the chart onto the canvas
+    const svgElement = chartElement.querySelector('svg')
+    if (!svgElement) return
+
+    const svgData = new XMLSerializer().serializeToString(svgElement)
+    const img = new Image()
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+
+    img.onload = function () {
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+
+      // Create download link
+      const link = document.createElement('a')
+      link.download = `chart-${activeMapLevel}-${filterYear}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    }
+
+    img.src = url
+  }
+
+  // Render appropriate chart based on type
   const renderChart = () => {
     if (chartData.length === 0) {
       return (
         <div className="flex items-center justify-center h-64 text-muted-foreground">
           <div className="text-center">
-            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No data available for charting</p>
             <p className="text-sm">
               {availableData.length === 0
@@ -300,119 +379,302 @@ export function DataCharts({
       )
     }
 
-    const commonProps = {
-      data: chartType === "pie" ? pieData : chartData,
-      margin: { top: 20, right: 30, left: 20, bottom: 60 },
-    }
-
-    // Enhanced tooltip with better formatting
-    const CustomTooltip = ({ active, payload, label }: any) => {
-      if (active && payload && payload.length) {
-        return (
-          <div className="bg-white p-3 border rounded-lg shadow-lg">
-            <p className="font-semibold">{label}</p>
-            {payload.map((entry: any, index: number) => (
-              <p key={index} style={{ color: entry.color }}>
-                {entry.name}: {typeof entry.value === "number" ? entry.value.toLocaleString() : entry.value}
-              </p>
-            ))}
-          </div>
-        )
-      }
-      return null
-    }
-
     switch (chartType) {
       case "bar":
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart {...commonProps}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} interval={0} fontSize={12} />
-              <YAxis />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              {yAxes.map((yAxis, index) => (
-                <Bar
-                  key={yAxis}
-                  dataKey={yAxis}
-                  fill={colors[index % colors.length]}
-                  name={yAxis.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="h-96">
+            <ResponsiveBar
+              data={chartData}
+              keys={yAxes}
+              indexBy="id"
+              margin={{ top: 50, right: 130, bottom: 100, left: 60 }}
+              padding={0.3}
+              valueScale={{ type: 'linear' }}
+              indexScale={{ type: 'band', round: true }}
+              colors={colors}
+              borderColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+              axisTop={null}
+              axisRight={null}
+              axisBottom={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: -45,
+                legend: activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1),
+                legendPosition: 'middle',
+                legendOffset: 80
+              }}
+              axisLeft={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: 0,
+                legend: 'Value',
+                legendPosition: 'middle',
+                legendOffset: -40
+              }}
+              labelSkipWidth={12}
+              labelSkipHeight={12}
+              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+              tooltip={({ id, value, color }) => (
+                <div style={{ padding: '12px', color, background: '#fff', border: '1px solid #ccc' }}>
+                  <strong>{id}</strong>: {value} {getMeasurementUnit(id as string)}
+                </div>
+              )}
+              legends={[
+                {
+                  dataFrom: 'keys',
+                  anchor: 'bottom-right',
+                  direction: 'column',
+                  justify: false,
+                  translateX: 120,
+                  translateY: 0,
+                  itemsSpacing: 2,
+                  itemWidth: 100,
+                  itemHeight: 20,
+                  itemDirection: 'left-to-right',
+                  itemOpacity: 0.85,
+                  symbolSize: 20,
+                  effects: [
+                    {
+                      on: 'hover',
+                      style: {
+                        itemOpacity: 1
+                      }
+                    }
+                  ]
+                }
+              ]}
+              animate={true}
+            />
+          </div>
+        )
+
+      case "clustered":
+        return (
+          <div className="h-96">
+            <ResponsiveBar
+              data={chartData}
+              keys={yAxes}
+              indexBy="id"
+              margin={{ top: 50, right: 130, bottom: 100, left: 60 }}
+              padding={0.1}
+              groupMode="grouped"
+              valueScale={{ type: 'linear' }}
+              indexScale={{ type: 'band', round: true }}
+              colors={colors}
+              borderColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+              axisTop={null}
+              axisRight={null}
+              axisBottom={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: -45,
+                legend: activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1),
+                legendPosition: 'middle',
+                legendOffset: 80
+              }}
+              axisLeft={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: 0,
+                legend: 'Value',
+                legendPosition: 'middle',
+                legendOffset: -40
+              }}
+              labelSkipWidth={12}
+              labelSkipHeight={12}
+              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
+              tooltip={({ id, value, color, indexValue }) => (
+                <div style={{ padding: '12px', color, background: '#fff', border: '1px solid #ccc' }}>
+                  <strong>{indexValue}</strong> - <strong>{id}</strong>: {value} {getMeasurementUnit(id as string)}
+                </div>
+              )}
+              legends={[
+                {
+                  dataFrom: 'keys',
+                  anchor: 'bottom-right',
+                  direction: 'column',
+                  justify: false,
+                  translateX: 120,
+                  translateY: 0,
+                  itemsSpacing: 2,
+                  itemWidth: 100,
+                  itemHeight: 20,
+                  itemDirection: 'left-to-right',
+                  itemOpacity: 0.85,
+                  symbolSize: 20,
+                  effects: [
+                    {
+                      on: 'hover',
+                      style: {
+                        itemOpacity: 1
+                      }
+                    }
+                  ]
+                }
+              ]}
+              animate={true}
+            />
+          </div>
         )
 
       case "line":
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart {...commonProps}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} interval={0} fontSize={12} />
-              <YAxis />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              {yAxes.map((yAxis, index) => (
-                <Line
-                  key={yAxis}
-                  type="monotone"
-                  dataKey={yAxis}
-                  stroke={colors[index % colors.length]}
-                  strokeWidth={2}
-                  name={yAxis.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        )
-
-      case "area":
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart {...commonProps}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} interval={0} fontSize={12} />
-              <YAxis />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              {yAxes.map((yAxis, index) => (
-                <Area
-                  key={yAxis}
-                  type="monotone"
-                  dataKey={yAxis}
-                  stackId="1"
-                  stroke={colors[index % colors.length]}
-                  fill={colors[index % colors.length]}
-                  fillOpacity={0.6}
-                  name={yAxis.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="h-96">
+            <ResponsiveLine
+              data={yAxes.map((yAxis, i) => ({
+                id: yAxis,
+                color: colors[i % colors.length],
+                data: chartData.map(item => ({
+                  x: item.id,
+                  y: item[yAxis] || 0
+                }))
+              }))}
+              margin={{ top: 50, right: 110, bottom: 100, left: 60 }}
+              xScale={{ type: 'point' }}
+              yScale={{ type: 'linear', min: 'auto', max: 'auto', stacked: false, reverse: false }}
+              curve="linear"
+              axisTop={null}
+              axisRight={null}
+              axisBottom={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: -45,
+                legend: activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1),
+                legendPosition: 'middle',
+                legendOffset: 80
+              }}
+              axisLeft={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: 0,
+                legend: 'Value',
+                legendPosition: 'middle',
+                legendOffset: -40
+              }}
+              colors={colors}
+              pointSize={10}
+              pointColor={{ theme: 'background' }}
+              pointBorderWidth={2}
+              pointBorderColor={{ from: 'serieColor' }}
+              pointLabelYOffset={-12}
+              enableArea={false}
+              useMesh={true}
+              tooltip={({ point }) => (
+                <div style={{ padding: '12px', background: '#fff', border: '1px solid #ccc' }}>
+                  <strong>{point.data.xFormatted}</strong>: {point.data.yFormatted} {getMeasurementUnit(point.seriesId)}
+                </div>
+              )}
+              legends={[
+                {
+                  anchor: 'bottom-right',
+                  direction: 'column',
+                  justify: false,
+                  translateX: 100,
+                  translateY: 0,
+                  itemsSpacing: 0,
+                  itemWidth: 80,
+                  itemHeight: 20,
+                  itemDirection: 'left-to-right',
+                  itemOpacity: 0.75,
+                  symbolSize: 12,
+                  symbolShape: 'circle',
+                  symbolBorderColor: 'rgba(0, 0, 0, .5)',
+                  effects: [
+                    {
+                      on: 'hover',
+                      style: {
+                        itemBackground: 'rgba(0, 0, 0, .03)',
+                        itemOpacity: 1
+                      }
+                    }
+                  ]
+                }
+              ]}
+            />
+          </div>
         )
 
       case "pie":
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                outerRadius={120}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div className="h-96">
+            <ResponsivePie
+              data={pieData}
+              margin={{ top: 40, right: 80, bottom: 80, left: 80 }}
+              innerRadius={0.5}
+              padAngle={0.7}
+              cornerRadius={3}
+              activeOuterRadiusOffset={8}
+              colors={colors}
+              borderWidth={1}
+              borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
+              arcLinkLabelsSkipAngle={10}
+              arcLinkLabelsTextColor="#333333"
+              arcLinkLabelsThickness={2}
+              arcLinkLabelsColor={{ from: 'color' }}
+              arcLabelsSkipAngle={10}
+              arcLabelsTextColor={{ from: 'color', modifiers: [['darker', 2]] }}
+              tooltip={({ datum }) => (
+                <div style={{ padding: '12px', background: '#fff', border: '1px solid #ccc' }}>
+                  <strong>{datum.label}</strong>: {datum.value} {getMeasurementUnit(yAxes[0])}
+                </div>
+              )}
+              defs={[
+                {
+                  id: 'dots',
+                  type: 'patternDots',
+                  background: 'inherit',
+                  color: 'rgba(255, 255, 255, 0.3)',
+                  size: 4,
+                  padding: 1,
+                  stagger: true
+                },
+                {
+                  id: 'lines',
+                  type: 'patternLines',
+                  background: 'inherit',
+                  color: 'rgba(255, 255, 255, 0.3)',
+                  rotation: -45,
+                  lineWidth: 6,
+                  spacing: 10
+                }
+              ]}
+              fill={[
+                { match: { id: 'ruby' }, id: 'dots' },
+                { match: { id: 'c' }, id: 'dots' },
+                { match: { id: 'go' }, id: 'lines' },
+                { match: { id: 'python' }, id: 'lines' },
+                { match: { id: 'scala' }, id: 'lines' },
+                { match: { id: 'lisp' }, id: 'lines' },
+                { match: { id: 'elixir' }, id: 'lines' },
+                { match: { id: 'javascript' }, id: 'lines' }
+              ]}
+              legends={[
+                {
+                  anchor: 'bottom',
+                  direction: 'row',
+                  justify: false,
+                  translateX: 0,
+                  translateY: 56,
+                  itemsSpacing: 0,
+                  itemWidth: 100,
+                  itemHeight: 18,
+                  itemTextColor: '#999',
+                  itemDirection: 'left-to-right',
+                  itemOpacity: 1,
+                  symbolSize: 18,
+                  symbolShape: 'circle',
+                  effects: [
+                    {
+                      on: 'hover',
+                      style: {
+                        itemTextColor: '#000'
+                      }
+                    }
+                  ]
+                }
+              ]}
+            />
+          </div>
         )
 
       case "scatter":
@@ -424,19 +686,69 @@ export function DataCharts({
           )
         }
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <ScatterChart {...commonProps}>
-              <CartesianGrid />
-              <XAxis dataKey={yAxes[0]} name={yAxes[0]} />
-              <YAxis dataKey={yAxes[1]} name={yAxes[1]} />
-              <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "3 3" }} />
-              <Scatter name="Data Points" data={chartData} fill={colors[0]} />
-            </ScatterChart>
-          </ResponsiveContainer>
+          <div className="h-96">
+            <ResponsiveScatterPlot
+              data={scatterData}
+              margin={{ top: 60, right: 140, bottom: 70, left: 90 }}
+              xScale={{ type: 'linear', min: 'auto', max: 'auto' }}
+              yScale={{ type: 'linear', min: 'auto', max: 'auto' }}
+              blendMode="multiply"
+              axisTop={null}
+              axisRight={null}
+              axisBottom={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: 0,
+                legend: yAxes[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                legendPosition: 'middle',
+                legendOffset: 46
+              }}
+              axisLeft={{
+                tickSize: 5,
+                tickPadding: 5,
+                tickRotation: 0,
+                legend: yAxes[1].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                legendPosition: 'middle',
+                legendOffset: -60
+              }}
+              colors={colors}
+              nodeSize={9}
+              useMesh={true}
+              tooltip={({ node }) => (
+                <div style={{ padding: '12px', background: '#fff', border: '1px solid #ccc' }}>
+                  <strong>{node.data.name}</strong><br />
+                  {yAxes[0]}: {node.data.x} {getMeasurementUnit(yAxes[0])}<br />
+                  {yAxes[1]}: {node.data.y} {getMeasurementUnit(yAxes[1])}
+                </div>
+              )}
+              legends={[
+                {
+                  anchor: 'bottom-right',
+                  direction: 'column',
+                  justify: false,
+                  translateX: 130,
+                  translateY: 0,
+                  itemWidth: 100,
+                  itemHeight: 12,
+                  itemsSpacing: 5,
+                  itemDirection: 'left-to-right',
+                  symbolSize: 12,
+                  symbolShape: 'circle',
+                  effects: [
+                    {
+                      on: 'hover',
+                      style: {
+                        itemOpacity: 1
+                      }
+                    }
+                  ]
+                }
+              ]}
+            />
+          </div>
         )
 
-      default:
-        return null
+
     }
   }
 
@@ -467,8 +779,6 @@ export function DataCharts({
     return (
       <Card className={className}>
         <CardContent className="p-8 text-center">
-          <BarChart3 className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="text-lg font-semibold mb-2">No Data Layers Active</h3>
           <p className="text-muted-foreground">
             Enable data layers from the sidebar to view interactive charts and visualizations.
           </p>
@@ -483,7 +793,6 @@ export function DataCharts({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5" />
               <span>Data Visualization - {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)} Level</span>
             </CardTitle>
             <div className="flex flex-wrap gap-2 mt-2">
@@ -501,8 +810,12 @@ export function DataCharts({
           <div className="flex items-center space-x-2">
             <Button onClick={exportData} size="sm" variant="outline">
               <Download className="h-4 w-4 mr-1" />
-              Export
+              Export Data
             </Button>
+            {/* <Button onClick={exportChartAsImage} size="sm" variant="outline">
+              <ImageIcon className="h-4 w-4 mr-1" />
+              Export Image
+            </Button> */}
           </div>
         </div>
       </CardHeader>
@@ -517,21 +830,16 @@ export function DataCharts({
           <TabsContent value="chart" className="space-y-4">
             {/* Chart Type Selector */}
             <div className="flex flex-wrap gap-2">
-              {chartTypes.map((type) => {
-                const Icon = type.icon
-                return (
-                  <Button
-                    key={type.value}
-                    variant={chartType === type.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setChartType(type.value)}
-                    className="flex items-center space-x-1"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{type.label}</span>
-                  </Button>
-                )
-              })}
+              {chartTypes.map((type) => (
+                <Button
+                  key={type.value}
+                  variant={chartType === type.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setChartType(type.value)}
+                >
+                  {type.label}
+                </Button>
+              ))}
             </div>
 
             {/* Chart */}
@@ -546,8 +854,8 @@ export function DataCharts({
                 </div>
               </div>
               <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{availableParentRegions.length || "N/A"}</div>
-                <div className="text-sm text-green-600">Parent Regions</div>
+                <div className="text-2xl font-bold text-green-600">{availableItems.length || "N/A"}</div>
+                <div className="text-sm text-green-600">Available Items</div>
               </div>
               <div className="text-center p-3 bg-orange-50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-600">{yAxes.length}</div>
@@ -570,7 +878,7 @@ export function DataCharts({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["2020", "2021", "2022", "2023", "2024"].map((year) => (
+                    {availableYears.map((year) => (
                       <SelectItem key={year} value={year}>
                         {year}
                       </SelectItem>
@@ -596,28 +904,49 @@ export function DataCharts({
                 </div>
               </div>
 
-              {/* Parent Region Filter (for zone/woreda) */}
-              {availableParentRegions.length > 0 && (
-                <div className="space-y-3">
+              {/* Item Selection (regions/zones/woredas) */}
+              {filteredAvailableItems.length > 0 && (
+                <div className="space-y-3 md:col-span-2">
                   <Label className="text-sm font-medium">
-                    Filter by {activeMapLevel === "zone" ? "Region" : "Zone"}
+                    Select {activeMapLevel}s to Display (Max {maxDisplayItems})
                   </Label>
-                  <div className="space-y-2 max-h-40 overflow-y-auto border rounded p-2">
-                    {availableParentRegions.map((parent) => (
-                      <div key={parent.code} className="flex items-center space-x-2">
+                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                    {filteredAvailableItems.map((item) => (
+                      <div key={`${item.code}-${item.name}`} className="flex items-center space-x-2">
                         <Checkbox
-                          id={parent.code}
-                          checked={selectedRegions.includes(parent.code)}
+                          id={`item-${item.code}`}
+                          checked={
+                            activeMapLevel === "region" 
+                              ? selectedRegions.includes(item.name)
+                              : activeMapLevel === "zone"
+                                ? selectedZones.includes(item.name)
+                                : selectedWoredas.includes(item.name)
+                          }
                           onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedRegions([...selectedRegions, parent.code])
-                            } else {
-                              setSelectedRegions(selectedRegions.filter((code) => code !== parent.code))
+                            if (activeMapLevel === "region") {
+                              if (checked && selectedRegions.length < maxDisplayItems) {
+                                setSelectedRegions([...selectedRegions, item.name])
+                              } else if (!checked) {
+                                setSelectedRegions(selectedRegions.filter((name) => name !== item.name))
+                              }
+                            } else if (activeMapLevel === "zone") {
+                              if (checked && selectedZones.length < maxDisplayItems) {
+                                setSelectedZones([...selectedZones, item.name])
+                              } else if (!checked) {
+                                setSelectedZones(selectedZones.filter((name) => name !== item.name))
+                              }
+                            } else if (activeMapLevel === "woreda") {
+                              if (checked && selectedWoredas.length < maxDisplayItems) {
+                                setSelectedWoredas([...selectedWoredas, item.name])
+                              } else if (!checked) {
+                                setSelectedWoredas(selectedWoredas.filter((name) => name !== item.name))
+                              }
                             }
                           }}
                         />
-                        <Label htmlFor={parent.code} className="text-sm">
-                          {parent.name}
+                        <Label htmlFor={`item-${item.code}`} className="text-sm">
+                          {item.name}
+                          {item.parent && <span className="text-muted-foreground ml-1">({item.parent})</span>}
                         </Label>
                       </div>
                     ))}
@@ -634,40 +963,42 @@ export function DataCharts({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
                       <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="15">15</SelectItem>
+                      <SelectItem value="14">14</SelectItem>
                       <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="30">30</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               )}
 
-              {/* Y-Axes Selection */}
-              <div className="space-y-3 md:col-span-2">
-                <Label className="text-sm font-medium">Y-Axes Variables (Select up to 5)</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto border rounded p-3">
-                  {availableFields.numeric.map((field) => (
-                    <div key={field} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={field}
-                        checked={yAxes.includes(field)}
-                        onCheckedChange={(checked) => {
-                          if (checked && yAxes.length < 5) {
-                            setYAxes([...yAxes, field])
-                          } else if (!checked) {
-                            setYAxes(yAxes.filter((axis) => axis !== field))
-                          }
-                        }}
-                      />
-                      <Label htmlFor={field} className="text-sm">
-                        {field.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                      </Label>
-                    </div>
-                  ))}
+              {/* Y-Axis Selection */}
+              {availableFields.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Select Y-Axis Variables</Label>
+                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
+                    {availableFields.map((field) => (
+                      <div key={field} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`field-${field}`}
+                          checked={yAxes.includes(field)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setYAxes([...yAxes, field])
+                            } else {
+                              setYAxes(yAxes.filter((y) => y !== field))
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`field-${field}`} className="text-sm">
+                          {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">Selected: {yAxes.length}/5 variables</div>
-              </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
