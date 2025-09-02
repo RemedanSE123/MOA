@@ -15,7 +15,6 @@ import { ResponsiveBar } from '@nivo/bar'
 import { ResponsiveLine } from '@nivo/line'
 import { ResponsivePie } from '@nivo/pie'
 import { ResponsiveScatterPlot } from '@nivo/scatterplot'
-// import { ResponsiveArea } from '@nivo/area'
 
 interface DataChartsProps {
   landData?: any[]
@@ -31,8 +30,7 @@ const chartTypes = [
   { value: "bar", label: "Bar Chart" },
   { value: "line", label: "Line Chart" },
   { value: "pie", label: "Pie Chart" },
-  { value: "scatter", label: "Scatter Plot" },
-  // { value: "area", label: "Area Chart" },
+  // { value: "scatter", label: "Scatter Plot" },
   { value: "clustered", label: "Clustered Bar" },
 ]
 
@@ -56,6 +54,7 @@ export function DataCharts({
   const [selectedWoredas, setSelectedWoredas] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [maxDisplayItems, setMaxDisplayItems] = useState(14)
+  const [imageFormat, setImageFormat] = useState<"png" | "jpg">("png")
 
   // Get all available years from data
   const availableYears = useMemo(() => {
@@ -269,18 +268,21 @@ export function DataCharts({
     maxDisplayItems
   ])
 
-  // Prepare data for pie chart (uses first Y-axis only)
+  // Prepare data for pie chart (one pie per Y-axis)
   const pieData = useMemo(() => {
     if (yAxes.length === 0 || chartData.length === 0) return []
     
-    const yAxis = yAxes[0]
-    return chartData
-      .map(item => ({
-        id: item.id,
-        label: item.id,
-        value: item[yAxis] || 0
-      }))
-      .sort((a, b) => b.value - a.value) // Sort descending
+    return yAxes.map((yAxis, index) => ({
+      id: yAxis,
+      label: yAxis.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      data: chartData
+        .map(item => ({
+          id: item.id,
+          label: item.id,
+          value: item[yAxis] || 0
+        }))
+        .sort((a, b) => b.value - a.value) // Sort descending
+    }))
   }, [chartData, yAxes])
 
   // Prepare data for scatter plot (uses first two Y-axes)
@@ -299,19 +301,6 @@ export function DataCharts({
     ]
   }, [chartData, yAxes])
 
-  // Prepare data for area chart
-  const areaData = useMemo(() => {
-    if (yAxes.length === 0 || chartData.length === 0) return []
-    
-    return yAxes.map((yAxis, i) => ({
-      id: yAxis,
-      data: chartData.map((item, index) => ({
-        x: item.id,
-        y: item[yAxis] || 0
-      }))
-    }))
-  }, [chartData, yAxes])
-
   // Get measurement unit for tooltips
   const getMeasurementUnit = (field: string) => {
     if (field.includes('temperature')) return '°C'
@@ -323,6 +312,17 @@ export function DataCharts({
     if (field.includes('_land') || field.includes('_area')) return 'ha'
     if (field.includes('incidence')) return '%'
     return ''
+  }
+
+  // Format field name for display
+  const formatFieldName = (field: string) => {
+    return field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }
+
+  // Format Y-axis values with units
+  const formatYAxisValue = (value: number, field: string) => {
+    const unit = getMeasurementUnit(field)
+    return `${value.toLocaleString()}${unit ? ` ${unit}` : ''}`
   }
 
   // Export chart as image
@@ -354,13 +354,38 @@ export function DataCharts({
 
       // Create download link
       const link = document.createElement('a')
-      link.download = `chart-${activeMapLevel}-${filterYear}.png`
-      link.href = canvas.toDataURL('image/png')
+      link.download = `chart-${activeMapLevel}-${filterYear}.${imageFormat}`
+      link.href = canvas.toDataURL(`image/${imageFormat}`)
       link.click()
     }
 
     img.src = url
   }
+
+  // Custom tooltip component for charts
+  const CustomTooltip = ({ id, value, color, indexValue, serieId }: any) => (
+    <div style={{ 
+      padding: '12px', 
+      background: '#fff', 
+      border: '1px solid #ccc', 
+      borderRadius: '4px', 
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      fontSize: '14px',
+      fontWeight: '500'
+    }}>
+      <div style={{ color, fontWeight: 'bold', marginBottom: '6px', fontSize: '15px' }}>
+        {indexValue}
+      </div>
+      <div>
+        <span style={{ color: '#555' }}>
+          {formatFieldName(serieId || id)}: 
+        </span>{' '}
+        <span style={{ fontWeight: 'bold', color: '#000' }}>
+          {value.toLocaleString()} {getMeasurementUnit(serieId || id)}
+        </span>
+      </div>
+    </div>
+  )
 
   // Render appropriate chart based on type
   const renderChart = () => {
@@ -387,7 +412,7 @@ export function DataCharts({
               data={chartData}
               keys={yAxes}
               indexBy="id"
-              margin={{ top: 50, right: 130, bottom: 100, left: 60 }}
+              margin={{ top: 50, right: 130, bottom: 100, left: 80 }}
               padding={0.3}
               valueScale={{ type: 'linear' }}
               indexScale={{ type: 'band', round: true }}
@@ -407,17 +432,16 @@ export function DataCharts({
                 tickSize: 5,
                 tickPadding: 5,
                 tickRotation: 0,
-                legend: 'Value',
+                // legend: 'Value',
                 legendPosition: 'middle',
-                legendOffset: -40
+                legendOffset: -50,
+                format: value => formatYAxisValue(value, yAxes[0])
               }}
+              enableLabel={false}
               labelSkipWidth={12}
               labelSkipHeight={12}
-              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
-              tooltip={({ id, value, color }) => (
-                <div style={{ padding: '12px', color, background: '#fff', border: '1px solid #ccc' }}>
-                  <strong>{id}</strong>: {value} {getMeasurementUnit(id as string)}
-                </div>
+              tooltip={({ id, value, color, indexValue }) => (
+                <CustomTooltip id={id} value={value} color={color} indexValue={indexValue} serieId={id} />
               )}
               legends={[
                 {
@@ -444,6 +468,32 @@ export function DataCharts({
                 }
               ]}
               animate={true}
+              theme={{
+                axis: {
+                  ticks: {
+                    text: {
+                      fontSize: 12,
+                      fill: '#555'
+                    }
+                  },
+                  legend: {
+                    text: {
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      fill: '#333'
+                    }
+                  }
+                },
+                tooltip: {
+                  container: {
+                    background: '#fff',
+                    color: '#333',
+                    fontSize: '14px',
+                    borderRadius: '4px',
+                    boxShadow: '0 3px 9px rgba(0, 0, 0, 0.15)'
+                  }
+                }
+              }}
             />
           </div>
         )
@@ -455,7 +505,7 @@ export function DataCharts({
               data={chartData}
               keys={yAxes}
               indexBy="id"
-              margin={{ top: 50, right: 130, bottom: 100, left: 60 }}
+              margin={{ top: 50, right: 130, bottom: 100, left: 80 }}
               padding={0.1}
               groupMode="grouped"
               valueScale={{ type: 'linear' }}
@@ -476,17 +526,16 @@ export function DataCharts({
                 tickSize: 5,
                 tickPadding: 5,
                 tickRotation: 0,
-                legend: 'Value',
+                // legend: 'Value',
                 legendPosition: 'middle',
-                legendOffset: -40
+                legendOffset: -50,
+                format: value => formatYAxisValue(value, yAxes[0])
               }}
+              enableLabel={false}
               labelSkipWidth={12}
               labelSkipHeight={12}
-              labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
               tooltip={({ id, value, color, indexValue }) => (
-                <div style={{ padding: '12px', color, background: '#fff', border: '1px solid #ccc' }}>
-                  <strong>{indexValue}</strong> - <strong>{id}</strong>: {value} {getMeasurementUnit(id as string)}
-                </div>
+                <CustomTooltip id={id} value={value} color={color} indexValue={indexValue} serieId={id} />
               )}
               legends={[
                 {
@@ -513,6 +562,23 @@ export function DataCharts({
                 }
               ]}
               animate={true}
+              theme={{
+                axis: {
+                  ticks: {
+                    text: {
+                      fontSize: 12,
+                      fill: '#555'
+                    }
+                  },
+                  legend: {
+                    text: {
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      fill: '#333'
+                    }
+                  }
+                }
+              }}
             />
           </div>
         )
@@ -529,7 +595,7 @@ export function DataCharts({
                   y: item[yAxis] || 0
                 }))
               }))}
-              margin={{ top: 50, right: 110, bottom: 100, left: 60 }}
+              margin={{ top: 50, right: 110, bottom: 100, left: 80 }}
               xScale={{ type: 'point' }}
               yScale={{ type: 'linear', min: 'auto', max: 'auto', stacked: false, reverse: false }}
               curve="linear"
@@ -547,9 +613,10 @@ export function DataCharts({
                 tickSize: 5,
                 tickPadding: 5,
                 tickRotation: 0,
-                legend: 'Value',
+                // legend: 'Value',
                 legendPosition: 'middle',
-                legendOffset: -40
+                legendOffset: -50,
+                format: value => formatYAxisValue(value, yAxes[0])
               }}
               colors={colors}
               pointSize={10}
@@ -560,9 +627,13 @@ export function DataCharts({
               enableArea={false}
               useMesh={true}
               tooltip={({ point }) => (
-                <div style={{ padding: '12px', background: '#fff', border: '1px solid #ccc' }}>
-                  <strong>{point.data.xFormatted}</strong>: {point.data.yFormatted} {getMeasurementUnit(point.seriesId)}
-                </div>
+                <CustomTooltip 
+                  id={point.seriesId} 
+                  value={point.data.y} 
+                  color={point.seriesColor} 
+                  indexValue={point.data.xFormatted} 
+                  serieId={point.seriesId} 
+                />
               )}
               legends={[
                 {
@@ -590,90 +661,145 @@ export function DataCharts({
                   ]
                 }
               ]}
+              theme={{
+                axis: {
+                  ticks: {
+                    text: {
+                      fontSize: 12,
+                      fill: '#555'
+                    }
+                  },
+                  legend: {
+                    text: {
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      fill: '#333'
+                    }
+                  }
+                }
+              }}
             />
           </div>
         )
 
       case "pie":
         return (
-          <div className="h-96">
-            <ResponsivePie
-              data={pieData}
-              margin={{ top: 40, right: 80, bottom: 80, left: 80 }}
-              innerRadius={0.5}
-              padAngle={0.7}
-              cornerRadius={3}
-              activeOuterRadiusOffset={8}
-              colors={colors}
-              borderWidth={1}
-              borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
-              arcLinkLabelsSkipAngle={10}
-              arcLinkLabelsTextColor="#333333"
-              arcLinkLabelsThickness={2}
-              arcLinkLabelsColor={{ from: 'color' }}
-              arcLabelsSkipAngle={10}
-              arcLabelsTextColor={{ from: 'color', modifiers: [['darker', 2]] }}
-              tooltip={({ datum }) => (
-                <div style={{ padding: '12px', background: '#fff', border: '1px solid #ccc' }}>
-                  <strong>{datum.label}</strong>: {datum.value} {getMeasurementUnit(yAxes[0])}
-                </div>
-              )}
-              defs={[
-                {
-                  id: 'dots',
-                  type: 'patternDots',
-                  background: 'inherit',
-                  color: 'rgba(255, 255, 255, 0.3)',
-                  size: 4,
-                  padding: 1,
-                  stagger: true
-                },
-                {
-                  id: 'lines',
-                  type: 'patternLines',
-                  background: 'inherit',
-                  color: 'rgba(255, 255, 255, 0.3)',
-                  rotation: -45,
-                  lineWidth: 6,
-                  spacing: 10
-                }
-              ]}
-              fill={[
-                { match: { id: 'ruby' }, id: 'dots' },
-                { match: { id: 'c' }, id: 'dots' },
-                { match: { id: 'go' }, id: 'lines' },
-                { match: { id: 'python' }, id: 'lines' },
-                { match: { id: 'scala' }, id: 'lines' },
-                { match: { id: 'lisp' }, id: 'lines' },
-                { match: { id: 'elixir' }, id: 'lines' },
-                { match: { id: 'javascript' }, id: 'lines' }
-              ]}
-              legends={[
-                {
-                  anchor: 'bottom',
-                  direction: 'row',
-                  justify: false,
-                  translateX: 0,
-                  translateY: 56,
-                  itemsSpacing: 0,
-                  itemWidth: 100,
-                  itemHeight: 18,
-                  itemTextColor: '#999',
-                  itemDirection: 'left-to-right',
-                  itemOpacity: 1,
-                  symbolSize: 18,
-                  symbolShape: 'circle',
-                  effects: [
+          <div className={`h-96 grid ${pieData.length === 1 ? 'grid-cols-1' : pieData.length === 2 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'} gap-4`}>
+            {pieData.map((pie, index) => (
+              <div key={pie.id} className="relative h-full">
+                <ResponsivePie
+                  data={pie.data}
+                  margin={{ top: 20, right: 20, bottom: 60, left: 20 }}
+                  innerRadius={0.5}
+                  padAngle={1}
+                  cornerRadius={3}
+                  activeOuterRadiusOffset={8}
+                  colors={colors}
+                  borderWidth={1}
+                  borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
+                  arcLinkLabelsSkipAngle={10}
+                  arcLinkLabelsTextColor="#333333"
+                  arcLinkLabelsThickness={2}
+                  arcLinkLabelsColor={{ from: 'color' }}
+                  arcLabelsSkipAngle={10}
+                  arcLabelsTextColor="#fff"
+                  arcLabelsComponent={({ datum, label }) => (
+                    <g>
+                      {/* <text
+                        // textAnchor="middle"
+                        // dominantBaseline="central"
+                        // style={{
+                        //   fontSize: '10px',
+                        //   fontWeight: 'bold',
+                        //   fill: '#fff',
+                        //   textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+                        // }}
+                      >
+                        {Math.round(datum.value)}
+                      </text> */}
+                    </g>
+                  )}
+                  tooltip={({ datum }) => (
+                    <CustomTooltip 
+                      id={pie.id} 
+                      value={datum.value} 
+                      color={datum.color} 
+                      indexValue={datum.label} 
+                      serieId={pie.id} 
+                    />
+                  )}
+                  defs={[
                     {
-                      on: 'hover',
-                      style: {
-                        itemTextColor: '#000'
+                      id: 'dots',
+                      type: 'patternDots',
+                      background: 'inherit',
+                      color: 'rgba(255, 255, 255, 0.3)',
+                      size: 4,
+                      padding: 1,
+                      stagger: true
+                    },
+                    {
+                      id: 'lines',
+                      type: 'patternLines',
+                      background: 'inherit',
+                      color: 'rgba(255, 255, 255, 0.3)',
+                      rotation: -45,
+                      lineWidth: 6,
+                      spacing: 10
+                    }
+                  ]}
+                  fill={[
+                    { match: { id: 'ruby' }, id: 'dots' },
+                    { match: { id: 'c' }, id: 'dots' },
+                    { match: { id: 'go' }, id: 'lines' },
+                    { match: { id: 'python' }, id: 'lines' },
+                    { match: { id: 'scala' }, id: 'lines' },
+                    { match: { id: 'lisp' }, id: 'lines' },
+                    { match: { id: 'elixir' }, id: 'lines' },
+                    { match: { id: 'javascript' }, id: 'lines' }
+                  ]}
+                  legends={[
+                    {
+                      anchor: 'bottom',
+                      direction: 'row',
+                      justify: false,
+                      translateX: 0,
+                      translateY: 40,
+                      itemsSpacing: 0,
+                      itemWidth: 80,
+                      itemHeight: 18,
+                      itemTextColor: '#999',
+                      itemDirection: 'left-to-right',
+                      itemOpacity: 1,
+                      symbolSize: 14,
+                      symbolShape: 'circle',
+                      effects: [
+                        {
+                          on: 'hover',
+                          style: {
+                            itemTextColor: '#000'
+                          }
+                        }
+                      ]
+                    }
+                  ]}
+                  theme={{
+                    tooltip: {
+                      container: {
+                        background: '#fff',
+                        color: '#333',
+                        fontSize: '14px',
+                        borderRadius: '4px',
+                        boxShadow: '0 3px 9px rgba(0, 0, 0, 0.15)'
                       }
                     }
-                  ]
-                }
-              ]}
-            />
+                  }}
+                />
+                <div className="absolute top-0 left-0 right-0 text-center font-semibold text-sm text-gray-700 bg-white/80 py-1">
+                  {pie.label}
+                </div>
+              </div>
+            ))}
           </div>
         )
 
@@ -699,26 +825,52 @@ export function DataCharts({
                 tickSize: 5,
                 tickPadding: 5,
                 tickRotation: 0,
-                legend: yAxes[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                legend: formatFieldName(yAxes[0]),
                 legendPosition: 'middle',
-                legendOffset: 46
+                legendOffset: 46,
+                format: value => formatYAxisValue(value, yAxes[0])
               }}
               axisLeft={{
                 tickSize: 5,
                 tickPadding: 5,
                 tickRotation: 0,
-                legend: yAxes[1].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                legend: formatFieldName(yAxes[1]),
                 legendPosition: 'middle',
-                legendOffset: -60
+                legendOffset: -60,
+                format: value => formatYAxisValue(value, yAxes[1])
               }}
               colors={colors}
               nodeSize={9}
               useMesh={true}
               tooltip={({ node }) => (
-                <div style={{ padding: '12px', background: '#fff', border: '1px solid #ccc' }}>
-                  <strong>{node.data.name}</strong><br />
-                  {yAxes[0]}: {node.data.x} {getMeasurementUnit(yAxes[0])}<br />
-                  {yAxes[1]}: {node.data.y} {getMeasurementUnit(yAxes[1])}
+                <div style={{ 
+                  padding: '12px', 
+                  background: '#fff', 
+                  border: '1px solid #ccc', 
+                  borderRadius: '4px', 
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}>
+                  <div style={{ color: node.color, fontWeight: 'bold', marginBottom: '6px', fontSize: '15px' }}>
+                    {node.data.name}
+                  </div>
+                  <div>
+                    <span style={{ color: '#555' }}>
+                      {formatFieldName(yAxes[0])}: 
+                    </span>{' '}
+                    <span style={{ fontWeight: 'bold', color: '#000' }}>
+                      {node.data.x.toLocaleString()} {getMeasurementUnit(yAxes[0])}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#555' }}>
+                      {formatFieldName(yAxes[1])}: 
+                    </span>{' '}
+                    <span style={{ fontWeight: 'bold', color: '#000' }}>
+                      {node.data.y.toLocaleString()} {getMeasurementUnit(yAxes[1])}
+                    </span>
+                  </div>
                 </div>
               )}
               legends={[
@@ -744,11 +896,33 @@ export function DataCharts({
                   ]
                 }
               ]}
+              theme={{
+                axis: {
+                  ticks: {
+                    text: {
+                      fontSize: 12,
+                      fill: '#555'
+                    }
+                  },
+                  legend: {
+                    text: {
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      fill: '#333'
+                    }
+                  }
+                }
+              }}
             />
           </div>
         )
 
-
+      default:
+        return (
+          <div className="flex items-center justify-center h-64 text-muted-foreground">
+            <p>Select a chart type to visualize data</p>
+          </div>
+        )
     }
   }
 
@@ -812,10 +986,21 @@ export function DataCharts({
               <Download className="h-4 w-4 mr-1" />
               Export Data
             </Button>
-            {/* <Button onClick={exportChartAsImage} size="sm" variant="outline">
-              <ImageIcon className="h-4 w-4 mr-1" />
-              Export Image
-            </Button> */}
+            <div className="flex items-center space-x-1">
+              <Select value={imageFormat} onValueChange={(value: "png" | "jpg") => setImageFormat(value)}>
+                <SelectTrigger className="w-20 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="png">PNG</SelectItem>
+                  <SelectItem value="jpg">JPG</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={exportChartAsImage} size="sm" variant="outline">
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Export Image
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -843,11 +1028,11 @@ export function DataCharts({
             </div>
 
             {/* Chart */}
-            <div className="border rounded-lg p-4 bg-white">{renderChart()}</div>
+            <div className="border rounded-lg p-4 bg-white shadow-sm">{renderChart()}</div>
 
             {/* Data Summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-100">
                 <div className="text-2xl font-bold text-blue-600">{chartData.length}</div>
                 <div className="text-sm text-blue-600">
                   {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)}s
@@ -992,7 +1177,7 @@ export function DataCharts({
                           }}
                         />
                         <Label htmlFor={`field-${field}`} className="text-sm">
-                          {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          {formatFieldName(field)}
                         </Label>
                       </div>
                     ))}

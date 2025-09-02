@@ -12,7 +12,9 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DataCharts } from "@/components/data-charts"
+import { motion, AnimatePresence } from "framer-motion"
 import { Loader2 } from "lucide-react"
+import Image from "next/image"
 import {
   Thermometer,
   MapPin,
@@ -1147,19 +1149,125 @@ useEffect(() => {
     </div>
   )
 }
-
 export default function EthiopiaTemperatureMap() {
   const [weatherControlsProps, setWeatherControlsProps] = useState<any>(null)
   const [layerControlsProps, setLayerControlsProps] = useState<any>(null)
+  const [showIntro, setShowIntro] = useState(true)
+
+  useEffect(() => {
+    // Hide the intro animation after 5 seconds
+    const timer = setTimeout(() => {
+      setShowIntro(false)
+    }, 10000) // Changed from 10000 to 5000 for 5 seconds
+
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
-    <MainLayout
-      title="Ministry of Agriculture - Ethiopia"
-      subtitle="ግብርና ሚኒስቴር - ኢትዮጵያ "
-      weatherControlsProps={weatherControlsProps}
-      layerControlsProps={layerControlsProps}
-    >
-      <MapContent setWeatherControlsProps={setWeatherControlsProps} setLayerControlsProps={setLayerControlsProps} />
-    </MainLayout>
+    <>
+      <AnimatePresence>
+        {showIntro && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-white"
+          >
+            <div className="text-center">
+         {/* Ministry Logo */}
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.5, duration: 1 }}
+                    className="mb-8 flex items-center justify-center"
+                  >
+                    <Image
+                      src="/moe.webp"
+                      alt="MOA Logo"
+                      width={200}
+                      height={200}
+                      className="object-contain"
+                      priority
+                    />
+                  </motion.div>
+
+                                  {/* Ministry Title */}
+                      <motion.h1
+                        initial={{ y: 50, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 1, duration: 1 }}
+                        className="text-3xl font-bold text-green-800 mb-2 text-center"
+                      >
+                        Ministry of Agriculture – Ethiopia
+                      </motion.h1>
+
+                      <motion.h2
+                        initial={{ y: 50, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 1.2, duration: 1 }}
+                        className="text-xl text-green-700 mb-8 text-center"
+                      >
+                        ግብርና ሚኒስቴር – ኢትዮጵያ
+                      </motion.h2>
+
+                      {/* Tagline Animation */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 2, duration: 1.5 }}
+                        className="space-y-6 text-center"
+                      >
+                      <p className="text-lg text-gray-700 font-medium">
+  Visualizing Ethiopia’s <span className="text-green-700 font-semibold">farmland</span>, 
+  <span className="text-green-700 font-semibold">crop data</span>, and 
+  <span className="text-green-700 font-semibold">pest trends</span> on an interactive map
+</p>
+                        <div className="flex justify-center flex-wrap gap-3">
+                          {[
+                            "Land Use",
+                            "Crop Production",
+                            "Pest Monitoring",
+                            "Sustainable Growth",
+                            "Innovation",
+                          ].map((word, index) => (
+                            <motion.span
+                              key={word}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 2.5 + index * 0.2, duration: 0.5 }}
+                              className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm shadow-sm hover:bg-green-200 transition"
+                            >
+                              {word}
+                            </motion.span>
+    ))}
+  </div>
+</motion.div>
+
+
+              {/* Progress Bar */}
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: "100%" }}
+                transition={{ delay: 1.5, duration: 3.5 }}
+                className="h-1 bg-green-300 mt-8 rounded-full"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+       {/* Only show MainLayout when intro is finished */}
+      {!showIntro && (
+        <MainLayout
+          title="Ministry of Agriculture - Ethiopia"
+          subtitle="ግብርና ሚኒስቴር - ኢትዮጵያ "
+          weatherControlsProps={weatherControlsProps}
+          layerControlsProps={layerControlsProps}
+        >
+          <MapContent setWeatherControlsProps={setWeatherControlsProps} setLayerControlsProps={setLayerControlsProps} />
+        </MainLayout>
+      )}
+    </>
   )
 }
