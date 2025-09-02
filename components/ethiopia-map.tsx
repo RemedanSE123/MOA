@@ -580,30 +580,59 @@ export function EthiopiaMap({
     return names[param] || param.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
   }, [])
 
+  // FIXED: Updated formatParameterValue to properly display units for all parameter types
   const formatParameterValue = useCallback((value: any, param: string) => {
     if (value === null || value === undefined) return "N/A"
-    if (typeof value === "number") {
-      // Land parameters
-      if (param.includes("_ha") || param.includes("_land") || param === "plowed_area" || 
-          param === "sowed_land" || param === "harvested_land" || param === "affected_area_ha") {
-        return `${value.toLocaleString()} ha`
+    
+    try {
+      // Convert to number if it's a string
+      const numericValue = typeof value === 'string' ? parseFloat(value) : value;
+      
+      if (isNaN(numericValue)) return String(value);
+      
+      // Land parameters - area measurements (hectares)
+      if (param.includes("total_agri_land") || param.includes("plowed_area") || 
+          param.includes("sowed_land") || param.includes("harvested_land")) {
+        return `${numericValue.toLocaleString()} ha`;
       }
-      // Crop production parameters
-      if (param.includes("_mt") || param.includes("production") || param === "crop_loss_tons") {
-        return `${value.toLocaleString()} MT`
+      
+      // Affected area (hectares)
+      if (param.includes("affected_area")) {
+        return `${numericValue.toLocaleString()} ha`;
       }
-      // Temperature parameters
-      if (param.includes("temp")) return `${value}°C`
-      // Precipitation parameters
-      if (param.includes("precipitation")) return `${value} mm`
-      // Cost parameters
-      if (param.includes("cost")) return `${value.toLocaleString()} ETB`
-      // Pest incidence
-      if (param.includes("incidence")) return `${value.toLocaleString()}%`
-      return value.toLocaleString()
+      
+      // Crop production parameters (metric tons)
+      if (param.includes("production") || param.includes("crop_loss")) {
+        return `${numericValue.toLocaleString()} tons`;
+      }
+      
+      // Temperature parameters (celsius)
+      if (param.includes("temp")) {
+        return `${numericValue.toFixed(1)}°C`;
+      }
+      
+      // Precipitation parameters (millimeters)
+      if (param.includes("precipitation")) {
+        return `${numericValue.toFixed(1)} mm`;
+      }
+      
+      // Cost parameters (Ethiopian Birr)
+      if (param.includes("cost")) {
+        return `${numericValue.toLocaleString()} ETB`;
+      }
+      
+      // Pest incidence (percentage)
+      if (param.includes("incidence")) {
+        return `${numericValue.toFixed(1)}%`;
+      }
+      
+      // Default for other numeric values
+      return numericValue.toLocaleString();
+    } catch (error) {
+      console.error("Error formatting parameter value:", error, value, param);
+      return String(value);
     }
-    return String(value)
-  }, [])
+  }, []);
 
   const legendColors: string[] = []
   const baseRgb = hexToRgb(baseColor)
@@ -848,7 +877,7 @@ export function EthiopiaMap({
                           <span className={`font-mono font-semibold ${
                             weatherParameter === "max_temp" ? "text-blue-800 font-bold" : "text-blue-800"
                           }`}>
-                            {weatherInfo.avg_annual_max_temperature_c}°C
+                            {formatParameterValue(weatherInfo.avg_annual_max_temperature_c, "max_temp")}
                           </span>
                         </div>
                         <div className={`flex justify-between p-2 rounded-lg ${
@@ -860,7 +889,7 @@ export function EthiopiaMap({
                           <span className={`font-mono font-semibold ${
                             weatherParameter === "min_temp" ? "text-blue-800 font-bold" : "text-blue-800"
                           }`}>
-                            {weatherInfo.avg_annual_min_temperature_c}°C
+                            {formatParameterValue(weatherInfo.avg_annual_min_temperature_c, "min_temp")}
                           </span>
                         </div>
                         <div className={`flex justify-between col-span-2 p-2 rounded-lg ${
@@ -872,7 +901,7 @@ export function EthiopiaMap({
                           <span className={`font-mono font-semibold ${
                             weatherParameter === "precipitation" ? "text-blue-800 font-bold" : "text-blue-800"
                           }`}>
-                            {weatherInfo.avg_annual_precipitation_mm_day} mm
+                            {formatParameterValue(weatherInfo.avg_annual_precipitation_mm_day, "precipitation")}
                           </span>
                         </div>
                       </div>
