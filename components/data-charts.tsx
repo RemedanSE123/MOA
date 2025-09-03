@@ -1211,9 +1211,9 @@ export function DataCharts({
                       }
                     }}
                   >
-                    <SelectTrigger className="w-full sm:w-[180px]">
+                    {/* <SelectTrigger className="w-full sm:w-[180px]">
                       <SelectValue placeholder="Filter by region" />
-                    </SelectTrigger>
+                    </SelectTrigger> */}
                     <SelectContent>
                       {availableParentRegions.map((region) => (
                         <SelectItem key={region.code} value={region.code}>

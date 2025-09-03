@@ -1219,9 +1219,9 @@ export default function EthiopiaTemperatureMap() {
                         className="space-y-6 text-center"
                       >
                       <p className="text-lg text-gray-700 font-medium">
-  Visualizing Ethiopia’s <span className="text-green-700 font-semibold">farmland</span>, 
-  <span className="text-green-700 font-semibold">crop data</span>, and 
-  <span className="text-green-700 font-semibold">pest trends</span> on an interactive map
+  Visualizing Ethiopia’s <span className="text-green-700 font-semibold"> Agricultural  land</span>, 
+  <span className="text-green-700 font-semibold"> Crop data</span>, and 
+  <span className="text-green-700 font-semibold"> Pest trends</span> on an interactive map
 </p>
                         <div className="flex justify-center flex-wrap gap-3">
                           {[
