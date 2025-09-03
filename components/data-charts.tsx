@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,8 @@ export function DataCharts({
   const [searchQuery, setSearchQuery] = useState("")
   const [maxDisplayItems, setMaxDisplayItems] = useState(14)
   const [imageFormat, setImageFormat] = useState<"png" | "jpg">("png")
+  const [exportError, setExportError] = useState<string | null>(null)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
 
   // Get all available years from data
   const availableYears = useMemo(() => {
@@ -325,67 +327,128 @@ export function DataCharts({
     return `${value.toLocaleString()}${unit ? ` ${unit}` : ''}`
   }
 
-  // Export chart as image
-  const exportChartAsImage = () => {
-    const chartElement = document.querySelector('.nivo-chart-container')
-    if (!chartElement) return
-
-    // Create a canvas element
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // Set canvas dimensions
-    canvas.width = chartElement.clientWidth
-    canvas.height = chartElement.clientHeight
-
-    // Draw the chart onto the canvas
-    const svgElement = chartElement.querySelector('svg')
-    if (!svgElement) return
-
-    const svgData = new XMLSerializer().serializeToString(svgElement)
-    const img = new Image()
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(svgBlob)
-
-    img.onload = function () {
-      ctx.drawImage(img, 0, 0)
-      URL.revokeObjectURL(url)
-
-      // Create download link
-      const link = document.createElement('a')
-      link.download = `chart-${activeMapLevel}-${filterYear}.${imageFormat}`
-      link.href = canvas.toDataURL(`image/${imageFormat}`)
-      link.click()
+  // Export chart as image - UPDATED implementation with better error handling
+  const exportChartAsImage = async () => {
+    setExportError(null);
+    
+    if (!chartContainerRef.current) {
+      setExportError("Chart container not found");
+      return;
     }
-
-    img.src = url
+    
+    const svgElement = chartContainerRef.current.querySelector('svg');
+    if (!svgElement) {
+      setExportError("SVG element not found in chart container");
+      return;
+    }
+    
+    try {
+      // Clone the SVG to avoid modifying the original
+      const clonedSvg = svgElement.cloneNode(true) as SVGElement;
+      
+      // Ensure the SVG has proper dimensions
+      const svgWidth = clonedSvg.getAttribute('width') || clonedSvg.getBoundingClientRect().width;
+      const svgHeight = clonedSvg.getAttribute('height') || clonedSvg.getBoundingClientRect().height;
+      
+      if (!svgWidth || !svgHeight || svgWidth === "0" || svgHeight === "0") {
+        setExportError("SVG has invalid dimensions");
+        return;
+      }
+      
+      // Set explicit width and height if not already set
+      clonedSvg.setAttribute('width', svgWidth.toString());
+      clonedSvg.setAttribute('height', svgHeight.toString());
+      
+      // Serialize SVG to string
+      const svgString = new XMLSerializer().serializeToString(clonedSvg);
+      
+      // Create a Blob from the SVG string
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      
+      // Create an image element to load the SVG
+      const img = new Image();
+      
+      // Wait for the image to load
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error("Failed to load SVG as image"));
+        img.src = svgUrl;
+      });
+      
+      // Create a canvas with the same dimensions as the SVG
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+      
+      // Set canvas dimensions
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      // Draw white background first
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw the image on the canvas
+      ctx.drawImage(img, 0, 0);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.download = `chart-${activeMapLevel}-${filterYear}.${imageFormat}`;
+      link.href = canvas.toDataURL(`image/${imageFormat}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      URL.revokeObjectURL(svgUrl);
+    } catch (error) {
+      console.error('Error exporting chart as image:', error);
+      setExportError(`Failed to export chart: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
-  // Custom tooltip component for charts
-  const CustomTooltip = ({ id, value, color, indexValue, serieId }: any) => (
-    <div style={{ 
-      padding: '12px', 
-      background: '#fff', 
-      border: '1px solid #ccc', 
-      borderRadius: '4px', 
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      fontSize: '14px',
-      fontWeight: '500'
-    }}>
-      <div style={{ color, fontWeight: 'bold', marginBottom: '6px', fontSize: '15px' }}>
-        {indexValue}
+  const CustomTooltip = ({ id, value, color, indexValue, serieId }: any) => {
+    const displayName = formatFieldName(serieId || id);
+    const displayValue = value.toLocaleString();
+    const unit = getMeasurementUnit(serieId || id);
+    
+    return (
+      <div style={{ 
+        padding: '10px 12px', 
+        background: '#fff', 
+        border: '1px solid #ccc', 
+        borderRadius: '4px', 
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        fontSize: '14px',
+        fontWeight: '500',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        whiteSpace: 'nowrap'
+      }}>
+        <div style={{
+          width: '12px',
+          height: '12px',
+          backgroundColor: color,
+          borderRadius: '2px',
+          flexShrink: 0
+        }}></div>
+        <div style={{ color, fontWeight: 'bold', fontSize: '14px', flexShrink: 0 }}>
+          {indexValue}:
+        </div>
+        <div style={{ flexShrink: 0 }}>
+          <span style={{ color: '#555' }}>{displayName}</span>
+        </div>
+        <div style={{ fontWeight: 'bold', color: '#000', flexShrink: 0 }}>
+          {displayValue}
+          {unit && <span style={{ marginLeft: '2px', fontWeight: 'normal' }}>{unit}</span>}
+        </div>
       </div>
-      <div>
-        <span style={{ color: '#555' }}>
-          {formatFieldName(serieId || id)}: 
-        </span>{' '}
-        <span style={{ fontWeight: 'bold', color: '#000' }}>
-          {value.toLocaleString()} {getMeasurementUnit(serieId || id)}
-        </span>
-      </div>
-    </div>
-  )
+    )
+  }
 
   // Render appropriate chart based on type
   const renderChart = () => {
@@ -407,7 +470,7 @@ export function DataCharts({
     switch (chartType) {
       case "bar":
         return (
-          <div className="h-96">
+          <div className="h-96" ref={chartContainerRef}>
             <ResponsiveBar
               data={chartData}
               keys={yAxes}
@@ -500,7 +563,7 @@ export function DataCharts({
 
       case "clustered":
         return (
-          <div className="h-96">
+          <div className="h-96" ref={chartContainerRef}>
             <ResponsiveBar
               data={chartData}
               keys={yAxes}
@@ -585,7 +648,7 @@ export function DataCharts({
 
       case "line":
         return (
-          <div className="h-96">
+          <div className="h-96" ref={chartContainerRef}>
             <ResponsiveLine
               data={yAxes.map((yAxis, i) => ({
                 id: yAxis,
@@ -684,7 +747,7 @@ export function DataCharts({
 
       case "pie":
         return (
-          <div className={`h-96 grid ${pieData.length === 1 ? 'grid-cols-1' : pieData.length === 2 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'} gap-4`}>
+          <div className={`h-96 grid ${pieData.length === 1 ? 'grid-cols-1' : pieData.length === 2 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'} gap-4`} ref={chartContainerRef}>
             {pieData.map((pie, index) => (
               <div key={pie.id} className="relative h-full">
                 <ResponsivePie
@@ -758,31 +821,31 @@ export function DataCharts({
                     { match: { id: 'elixir' }, id: 'lines' },
                     { match: { id: 'javascript' }, id: 'lines' }
                   ]}
-                  legends={[
-                    {
-                      anchor: 'bottom',
-                      direction: 'row',
-                      justify: false,
-                      translateX: 0,
-                      translateY: 40,
-                      itemsSpacing: 0,
-                      itemWidth: 80,
-                      itemHeight: 18,
-                      itemTextColor: '#999',
-                      itemDirection: 'left-to-right',
-                      itemOpacity: 1,
-                      symbolSize: 14,
-                      symbolShape: 'circle',
-                      effects: [
-                        {
-                          on: 'hover',
-                          style: {
-                            itemTextColor: '#000'
-                          }
-                        }
-                      ]
-                    }
-                  ]}
+                  // legends={[
+                  //   {
+                  //     anchor: 'bottom',
+                  //     direction: 'row',
+                  //     justify: false,
+                  //     translateX: 0,
+                  //     translateY: 40,
+                  //     itemsSpacing: 0,
+                  //     itemWidth: 80,
+                  //     itemHeight: 18,
+                  //     itemTextColor: '#999',
+                  //     itemDirection: 'left-to-right',
+                  //     itemOpacity: 1,
+                  //     symbolSize: 14,
+                  //     symbolShape: 'circle',
+                  //     effects: [
+                  //       {
+                  //         on: 'hover',
+                  //         style: {
+                  //           itemTextColor: '#000'
+                  //         }
+                  //       }
+                  //     ]
+                  //   }
+                  // ]}
                   theme={{
                     tooltip: {
                       container: {
@@ -812,7 +875,7 @@ export function DataCharts({
           )
         }
         return (
-          <div className="h-96">
+          <div className="h-96" ref={chartContainerRef}>
             <ResponsiveScatterPlot
               data={scatterData}
               margin={{ top: 60, right: 140, bottom: 70, left: 90 }}
@@ -971,222 +1034,266 @@ export function DataCharts({
             </CardTitle>
             <div className="flex flex-wrap gap-2 mt-2">
               {activeDataLayers.map((layer) => (
-                <Badge key={layer} variant="secondary" className="text-xs">
+                <Badge key={layer} variant="secondary">
                   {layer}
                 </Badge>
               ))}
-              <Badge variant="outline" className="text-xs">
-                <MapPin className="h-3 w-3 mr-1" />
-                {chartData.length} {activeMapLevel}s
-              </Badge>
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Button onClick={exportData} size="sm" variant="outline">
-              <Download className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={exportData}>
+              <Download className="h-4 w-4 mr-2" />
               Export Data
             </Button>
-            <div className="flex items-center space-x-1">
+            <Button variant="outline" size="sm" onClick={exportChartAsImage}>
+              <ImageIcon className="h-4 w-4 mr-2" />
+              Export Image
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {/* Filters and controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="chart-type">Chart Type</Label>
+              <Select value={chartType} onValueChange={setChartType}>
+                <SelectTrigger id="chart-type">
+                  <SelectValue placeholder="Select chart type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {chartTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="year-filter">Year</Label>
+              <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger id="year-filter">
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="image-format">Image Format</Label>
               <Select value={imageFormat} onValueChange={(value: "png" | "jpg") => setImageFormat(value)}>
-                <SelectTrigger className="w-20 h-9">
-                  <SelectValue />
+                <SelectTrigger id="image-format">
+                  <SelectValue placeholder="Select format" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="png">PNG</SelectItem>
                   <SelectItem value="jpg">JPG</SelectItem>
                 </SelectContent>
               </Select>
-              <Button onClick={exportChartAsImage} size="sm" variant="outline">
-                <ImageIcon className="h-4 w-4 mr-1" />
-                Export Image
-              </Button>
             </div>
+
+            {activeMapLevel !== "region" && (
+              <div className="space-y-2">
+                <Label htmlFor="max-items">Max Items to Display</Label>
+                <Input
+                  id="max-items"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={maxDisplayItems}
+                  onChange={(e) => setMaxDisplayItems(Number(e.target.value))}
+                />
+              </div>
+            )}
           </div>
-        </div>
-      </CardHeader>
 
-      <CardContent className="space-y-6">
-        <Tabs defaultValue="chart" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="chart">Chart View</TabsTrigger>
-            <TabsTrigger value="settings">Chart Settings</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="chart" className="space-y-4">
-            {/* Chart Type Selector */}
-            <div className="flex flex-wrap gap-2">
-              {chartTypes.map((type) => (
-                <Button
-                  key={type.value}
-                  variant={chartType === type.value ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setChartType(type.value)}
-                >
-                  {type.label}
-                </Button>
-              ))}
+          {/* Y-axis selection */}
+          {availableFields.length > 0 && (
+            <div className="space-y-2">
+              <Label>Y-Axis Variables</Label>
+              <div className="flex flex-wrap gap-3">
+                {availableFields.map((field) => (
+                  <div key={field} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={field}
+                      checked={yAxes.includes(field)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setYAxes([...yAxes, field])
+                        } else {
+                          setYAxes(yAxes.filter((y) => y !== field))
+                        }
+                      }}
+                    />
+                    <Label
+                      htmlFor={field}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {formatFieldName(field)}
+                    </Label>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
 
-            {/* Chart */}
-            <div className="border rounded-lg p-4 bg-white shadow-sm">{renderChart()}</div>
-
-            {/* Data Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <div className="text-2xl font-bold text-blue-600">{chartData.length}</div>
-                <div className="text-sm text-blue-600">
-                  {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)}s
+          {/* Region/Zone/Woreda selection */}
+          {availableItems.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>
+                  Select {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)}s to Display
+                </Label>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (activeMapLevel === "region") {
+                        setSelectedRegions([])
+                      } else if (activeMapLevel === "zone") {
+                        setSelectedZones([])
+                      } else {
+                        setSelectedWoredas([])
+                      }
+                    }}
+                  >
+                    Clear All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (activeMapLevel === "region") {
+                        setSelectedRegions(availableItems.map(item => item.name))
+                      } else if (activeMapLevel === "zone") {
+                        setSelectedZones(availableItems.map(item => item.name))
+                      } else {
+                        setSelectedWoredas(availableItems.map(item => item.name))
+                      }
+                    }}
+                  >
+                    Select All
+                  </Button>
                 </div>
               </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{availableItems.length || "N/A"}</div>
-                <div className="text-sm text-green-600">Available Items</div>
-              </div>
-              <div className="text-center p-3 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{yAxes.length}</div>
-                <div className="text-sm text-orange-600">Variables</div>
-              </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{filterYear}</div>
-                <div className="text-sm text-purple-600">Year</div>
-              </div>
-            </div>
-          </TabsContent>
 
-          <TabsContent value="settings" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Year Filter */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Filter by Year</Label>
-                <Select value={filterYear} onValueChange={setFilterYear}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableYears.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Search Filter */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">
-                  Search {activeMapLevel.charAt(0).toUpperCase() + activeMapLevel.slice(1)}s
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              {/* Search and filter */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    type="text"
                     placeholder={`Search ${activeMapLevel}s...`}
+                    className="pl-8"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8"
                   />
                 </div>
-              </div>
 
-              {/* Item Selection (regions/zones/woredas) */}
-              {filteredAvailableItems.length > 0 && (
-                <div className="space-y-3 md:col-span-2">
-                  <Label className="text-sm font-medium">
-                    Select {activeMapLevel}s to Display (Max {maxDisplayItems})
-                  </Label>
-                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
-                    {filteredAvailableItems.map((item) => (
-                      <div key={`${item.code}-${item.name}`} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`item-${item.code}`}
-                          checked={
-                            activeMapLevel === "region" 
-                              ? selectedRegions.includes(item.name)
-                              : activeMapLevel === "zone"
-                                ? selectedZones.includes(item.name)
-                                : selectedWoredas.includes(item.name)
-                          }
-                          onCheckedChange={(checked) => {
-                            if (activeMapLevel === "region") {
-                              if (checked && selectedRegions.length < maxDisplayItems) {
-                                setSelectedRegions([...selectedRegions, item.name])
-                              } else if (!checked) {
-                                setSelectedRegions(selectedRegions.filter((name) => name !== item.name))
-                              }
-                            } else if (activeMapLevel === "zone") {
-                              if (checked && selectedZones.length < maxDisplayItems) {
-                                setSelectedZones([...selectedZones, item.name])
-                              } else if (!checked) {
-                                setSelectedZones(selectedZones.filter((name) => name !== item.name))
-                              }
-                            } else if (activeMapLevel === "woreda") {
-                              if (checked && selectedWoredas.length < maxDisplayItems) {
-                                setSelectedWoredas([...selectedWoredas, item.name])
-                              } else if (!checked) {
-                                setSelectedWoredas(selectedWoredas.filter((name) => name !== item.name))
-                              }
-                            }
-                          }}
-                        />
-                        <Label htmlFor={`item-${item.code}`} className="text-sm">
-                          {item.name}
-                          {item.parent && <span className="text-muted-foreground ml-1">({item.parent})</span>}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Display Limit (for zone/woreda) */}
-              {(activeMapLevel === "zone" || activeMapLevel === "woreda") && (
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Max Display Items</Label>
-                  <Select value={String(maxDisplayItems)} onValueChange={(value) => setMaxDisplayItems(Number(value))}>
-                    <SelectTrigger>
-                      <SelectValue />
+                {activeMapLevel !== "region" && availableParentRegions.length > 0 && (
+                  <Select
+                    onValueChange={(value) => {
+                      // Filter items by selected region
+                      const filtered = availableItems.filter(item => item.parentCode === value)
+                      if (activeMapLevel === "zone") {
+                        setSelectedZones(filtered.map(item => item.name))
+                      } else {
+                        setSelectedWoredas(filtered.map(item => item.name))
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by region" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="14">14</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="30">30</SelectItem>
+                      {availableParentRegions.map((region) => (
+                        <SelectItem key={region.code} value={region.code}>
+                          {region.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Y-Axis Selection */}
-              {availableFields.length > 0 && (
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Select Y-Axis Variables</Label>
-                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-3">
-                    {availableFields.map((field) => (
-                      <div key={field} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`field-${field}`}
-                          checked={yAxes.includes(field)}
-                          onCheckedChange={(checked) => {
+              {/* Selection checkboxes */}
+              <div className="max-h-40 overflow-y-auto border rounded-md p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {filteredAvailableItems.map((item) => (
+                    <div key={item.name} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={item.name}
+                        checked={
+                          activeMapLevel === "region"
+                            ? selectedRegions.includes(item.name)
+                            : activeMapLevel === "zone"
+                            ? selectedZones.includes(item.name)
+                            : selectedWoredas.includes(item.name)
+                        }
+                        onCheckedChange={(checked) => {
+                          if (activeMapLevel === "region") {
                             if (checked) {
-                              setYAxes([...yAxes, field])
+                              setSelectedRegions([...selectedRegions, item.name])
                             } else {
-                              setYAxes(yAxes.filter((y) => y !== field))
+                              setSelectedRegions(selectedRegions.filter(r => r !== item.name))
                             }
-                          }}
-                        />
-                        <Label htmlFor={`field-${field}`} className="text-sm">
-                          {formatFieldName(field)}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
+                          } else if (activeMapLevel === "zone") {
+                            if (checked) {
+                              setSelectedZones([...selectedZones, item.name])
+                            } else {
+                              setSelectedZones(selectedZones.filter(z => z !== item.name))
+                            }
+                          } else {
+                            if (checked) {
+                              setSelectedWoredas([...selectedWoredas, item.name])
+                            } else {
+                              setSelectedWoredas(selectedWoredas.filter(w => w !== item.name))
+                            }
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={item.name}
+                        className="text-sm font-normal cursor-pointer truncate"
+                        title={item.name}
+                      >
+                        {item.name}
+                      </Label>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          )}
+
+          {/* Chart display */}
+          <div className="border rounded-md p-4">
+            {renderChart()}
+          </div>
+
+          {/* Export error display */}
+          {exportError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-700 text-sm">{exportError}</p>
+            </div>
+          )}
+
+          {/* Data summary */}
+          {chartData.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              Showing {chartData.length} of {availableItems.length} {activeMapLevel}s for {filterYear}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

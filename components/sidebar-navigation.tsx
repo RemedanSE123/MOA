@@ -582,161 +582,203 @@ const renderAgricultureControls = () => (
   </div>
 )
 
-  return (
-    <div
-      className={cn(
-        "flex flex-col h-full bg-sidebar border-r border-sidebar-border",
-        isCollapsed ? "w-16" : isMobile ? "w-80" : "w-96",
-        className,
-      )}
-    >
-      {/* Header */}
-      <div className="p-3 border-b border-sidebar-border">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div>
-              <h2 className="text-sm font-semibold text-sidebar-foreground truncate">Ministry of Agriculture</h2>
-              <p className="text-xs text-sidebar-foreground/70 truncate">Ethiopia Agricultural Data Portal</p>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleCollapse}
-            className="text-sidebar-foreground hover:bg-sidebar-accent h-8 w-8 p-0 flex-shrink-0"
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <Map className={cn("h-4 w-4 transition-transform duration-200", isCollapsed && "rotate-180")} />
-          </Button>
-        </div>
+return (
+  <div
+    className={cn(
+      "flex flex-col h-full bg-sidebar border-r border-sidebar-border",
+      isCollapsed ? "w-16" : isMobile ? "w-80" : "w-96",
+      className,
+    )}
+  >
+    {/* Header */}
+    <div className="p-3 border-b border-sidebar-border">
+      <div className="flex items-center justify-between">
+        {!isCollapsed && (
+          <div>
+            <h2 className="text-sm font-semibold text-sidebar-foreground truncate">
+              Ministry of Agriculture
+            </h2>
+            <p className="text-xs text-sidebar-foreground/70 truncate">
+              Ethiopia Agricultural Data Portal
+            </p>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleToggleCollapse}
+          className="text-sidebar-foreground hover:bg-sidebar-accent h-8 w-8 p-0 flex-shrink-0"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <Map
+            className={cn(
+              "h-4 w-4 transition-transform duration-200",
+              isCollapsed && "rotate-180",
+            )}
+          />
+        </Button>
       </div>
+    </div>
 
-      {/* Navigation Items */}
-      <ScrollArea className="flex-1 p-2 overflow-y-auto">
-        <div className="space-y-1">
-          {sidebarItems.map((item) => {
-            const isExpanded = expandedItems.includes(item.id)
-            const hasChildren = item.children && item.children.length > 0
-            const Icon = item.icon
+    {/* Navigation Items */}
+    <ScrollArea className="flex-1 p-2 overflow-y-auto">
+      <div className="space-y-1">
+        {sidebarItems.map((item) => {
+          const isExpanded = expandedItems.includes(item.id)
+          const hasChildren = item.children && item.children.length > 0
+          const Icon = item.icon
 
-            return (
-              <div key={item.id}>
-                {/* Parent Item */}
-                <Button
-                  variant="ghost"
+          return (
+            <div key={item.id}>
+              {/* Parent Item */}
+              <Button
+                variant="ghost"
+                className={cn(
+                  "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm h-10 transition-all duration-200",
+                  activeItem === item.id &&
+                    "bg-sidebar-primary text-sidebar-primary-foreground",
+                  isCollapsed && "justify-center px-2",
+                )}
+                // 🔹 If sidebar is collapsed, first expand it instead of just toggling
+                onClick={() => {
+                  if (isCollapsed) {
+                    handleToggleCollapse()
+                  } else {
+                    handleItemClick(item.id, !!hasChildren)
+                  }
+                }}
+                title={isCollapsed ? item.title : undefined}
+              >
+                <Icon
                   className={cn(
-                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm h-10 transition-all duration-200",
-                    activeItem === item.id && "bg-sidebar-primary text-sidebar-primary-foreground",
-                    isCollapsed && "justify-center px-2",
+                    "h-4 w-4 flex-shrink-0",
+                    !isCollapsed && "mr-3",
                   )}
-                  onClick={() => handleItemClick(item.id, !!hasChildren)}
-                  title={isCollapsed ? item.title : undefined}
-                >
-                  <Icon className={cn("h-4 w-4 flex-shrink-0", !isCollapsed && "mr-3")} />
-                  {!isCollapsed && (
-                    <>
-                      <span className="flex-1 text-left">{item.title}</span>
-                      {hasChildren &&
-                        (isExpanded ? (
-                          <ChevronDown className="h-4 w-4 transition-transform duration-200" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 transition-transform duration-200" />
-                        ))}
-                    </>
-                  )}
-                </Button>
-
-                {/* Children Items */}
-                {hasChildren && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
-                    {item.children?.map((child) => {
-                      const ChildIcon = child.icon
-                      return (
-                        <Button
-                          key={child.id}
-                          variant="ghost"
-                          className={cn(
-                            "w-full justify-start text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground h-9 transition-all duration-200",
-                            activeItem === child.id && "bg-sidebar-primary text-sidebar-primary-foreground",
-                          )}
-                          onClick={() => handleItemClick(child.id, false)}
-                        >
-                          <ChildIcon className="h-3.5 w-3.5 mr-2.5 flex-shrink-0" />
-                          <span className="flex-1 text-left">{child.title}</span>
-                        </Button>
-                      )
-                    })}
-                  </div>
+                />
+                {!isCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">{item.title}</span>
+                    {hasChildren &&
+                      (isExpanded ? (
+                        <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 transition-transform duration-200" />
+                      ))}
+                  </>
                 )}
+              </Button>
 
-                {/* Weather Data Controls */}
-                {item.id === "weather-data" && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">{renderWeatherControls()}</div>
-                )}
+              {/* Children Items */}
+              {hasChildren && isExpanded && !isCollapsed && (
+                <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                  {item.children?.map((child) => {
+                    const ChildIcon = child.icon
+                    return (
+                      <Button
+                        key={child.id}
+                        variant="ghost"
+                        className={cn(
+                          "w-full justify-start text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground h-9 transition-all duration-200",
+                          activeItem === child.id &&
+                            "bg-sidebar-primary text-sidebar-primary-foreground",
+                        )}
+                        onClick={() => handleItemClick(child.id, false)}
+                      >
+                        <ChildIcon className="h-3.5 w-3.5 mr-2.5 flex-shrink-0" />
+                        <span className="flex-1 text-left">{child.title}</span>
+                      </Button>
+                    )
+                  })}
+                </div>
+              )}
 
-                {/* Land Data Controls */}
-                {item.id === "land-data" && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">{renderLandControls()}</div>
-                )}
+              {/* Weather Data Controls */}
+              {item.id === "weather-data" && isExpanded && !isCollapsed && (
+                <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
+                  {renderWeatherControls()}
+                </div>
+              )}
 
-                {/* Crop Production Controls */}
-                {item.id === "crop-production" && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">{renderCropControls()}</div>
-                )}
+              {/* Land Data Controls */}
+              {item.id === "land-data" && isExpanded && !isCollapsed && (
+                <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
+                  {renderLandControls()}
+                </div>
+              )}
 
-                {/* Pest Data Controls */}
-                {item.id === "pest-data" && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">{renderPestControls()}</div>
-                )}
+              {/* Crop Production Controls */}
+              {item.id === "crop-production" && isExpanded && !isCollapsed && (
+                <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
+                  {renderCropControls()}
+                </div>
+              )}
 
-                {/* Agriculture Lands Controls */}
-                {item.id === "agriculture-lands" && isExpanded && !isCollapsed && (
+              {/* Pest Data Controls */}
+              {item.id === "pest-data" && isExpanded && !isCollapsed && (
+                <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
+                  {renderPestControls()}
+                </div>
+              )}
+
+              {/* Agriculture Lands Controls */}
+              {item.id === "agriculture-lands" &&
+                isExpanded &&
+                !isCollapsed && (
                   <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
                     {renderAgricultureControls()}
                   </div>
                 )}
 
-                {/* AI Assistant */}
-                {item.id === "ai-assistant" && isExpanded && !isCollapsed && (
-                  <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
-                    <AIAssistant
-                      activeMapLevel={
-                        activeItem?.includes("region") ? "region" : activeItem?.includes("zone") ? "zone" : "woreda"
-                      }
-                      activeDataLayers={getActiveDataLayers()}
-                      currentYear={layerControlsProps?.selectedYear || weatherControlsProps?.selectedYear || "2020"}
-                      className={isMobile ? "h-64" : "h-80"}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </ScrollArea>
+              {/* AI Assistant */}
+              {item.id === "ai-assistant" && isExpanded && !isCollapsed && (
+                <div className="ml-4 mt-2 animate-in slide-in-from-top-2 duration-200">
+                  <AIAssistant
+                    activeMapLevel={
+                      activeItem?.includes("region")
+                        ? "region"
+                        : activeItem?.includes("zone")
+                        ? "zone"
+                        : "woreda"
+                    }
+                    activeDataLayers={getActiveDataLayers()}
+                    currentYear={
+                      layerControlsProps?.selectedYear ||
+                      weatherControlsProps?.selectedYear ||
+                      "2020"
+                    }
+                    className={isMobile ? "h-64" : "h-80"}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </ScrollArea>
 
-      {/* Footer */}
-      {!isCollapsed && (
-        <div className="p-3 border-t border-sidebar-border bg-green-600">
-          <div className="text-xs text-center">
-            <a
-              href="https://www.kukunetdigital.com"
-              className="text-white transition-colors duration-300 hover:text-green-200"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              © 2025 Powered by: KUKUNET digital.
-            </a>
-          </div>
+    {/* Footer */}
+    {!isCollapsed && (
+      <div className="p-3 border-t border-sidebar-border bg-green-600">
+        <div className="text-xs text-center">
+          <a
+            href="https://www.kukunetdigital.com"
+            className="text-white transition-colors duration-300 hover:text-green-200"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            © 2025 Powered by: KUKUNET digital.
+          </a>
         </div>
-      )}
+      </div>
+    )}
 
-      {/* Collapsed state tooltip */}
-      {isCollapsed && (
-        <div className="absolute left-full top-4 ml-2 px-2 py-1 bg-sidebar-primary text-sidebar-primary-foreground text-xs rounded opacity-0 pointer-events-none transition-opacity duration-200 hover:opacity-100 z-50">
-          Click to expand
-        </div>
-      )}
-    </div>
-  )
+    {/* Collapsed state tooltip */}
+    {isCollapsed && (
+      <div className="absolute left-full top-4 ml-2 px-2 py-1 bg-sidebar-primary text-sidebar-primary-foreground text-xs rounded opacity-0 pointer-events-none transition-opacity duration-200 hover:opacity-100 z-50">
+        Click to expand
+      </div>
+    )}
+  </div>
+)
+
 }
