@@ -270,7 +270,7 @@ const renderWeatherControls = () => (
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["2014","2015","2016","2017","2018","2019","2020", "2021", "2022", "2023", "2024"].map((year) => (
+                {["2014","2015","2016","2017","2018","2019","2020", "2021", "2022", "2023"].map((year) => (
                   <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>
@@ -351,7 +351,7 @@ const renderWeatherControls = () => (
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["2014","2015","2016","2017","2018","2019","2020", "2021", "2022", "2023", "2024"].map((year) => (
+                {["2020",   "2024"].map((year) => (
                   <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>
@@ -430,7 +430,7 @@ const renderWeatherControls = () => (
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["2014","2015","2016","2017","2018","2019","2020", "2021", "2022", "2023", "2024"].map((year) => (
+                {["2020", "2024"].map((year) => (
                   <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>
@@ -510,7 +510,7 @@ const renderWeatherControls = () => (
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["2014","2015","2016","2017","2018","2019","2020", "2021", "2022", "2023", "2024"].map((year) => (
+                {["2020", "2024"].map((year) => (
                   <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>

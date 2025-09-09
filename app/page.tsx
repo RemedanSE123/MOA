@@ -643,7 +643,10 @@ useEffect(() => {
                 id="weather-toggle"
                 checked={showWeatherData}
                 onCheckedChange={setShowWeatherData}
-                className="data-[state=checked]:bg-blue-600"
+                style={{
+    backgroundColor: showWeatherData ? '#2563eb' : '#374151'
+  }}
+  className="data-[state=checked]:bg-blue-600"
               />
             </div>
 
@@ -666,6 +669,9 @@ useEffect(() => {
                 id="land-toggle"
                 checked={landLayerEnabled}
                 onCheckedChange={setLandLayerEnabled}
+                   style={{
+    backgroundColor: landLayerEnabled ? '#16a34a' : '#374151'
+  }}
                 className="data-[state=checked]:bg-green-600"
               />
             </div>
@@ -689,6 +695,9 @@ useEffect(() => {
                 id="crop-toggle"
                 checked={cropProductionLayerEnabled}
                 onCheckedChange={setCropProductionLayerEnabled}
+                   style={{
+    backgroundColor: cropProductionLayerEnabled ? '#d97706' : '#374151'
+  }}
                 className="data-[state=checked]:bg-amber-600"
               />
             </div>
@@ -712,6 +721,9 @@ useEffect(() => {
                 id="pest-toggle"
                 checked={pestDataLayerEnabled}
                 onCheckedChange={setPestDataLayerEnabled}
+                   style={{
+    backgroundColor: pestDataLayerEnabled ? '#dc2626' : '#374151'
+  }}
                 className="data-[state=checked]:bg-red-600"
               />
             </div>
@@ -730,6 +742,9 @@ useEffect(() => {
                 id="stations-toggle"
                 checked={showStations}
                 onCheckedChange={setShowStations}
+                   style={{
+    backgroundColor: showStations ? '#2563eb' : '#374151'
+  }}
                 className="data-[state=checked]:bg-teal-600"
               />
             </div>
@@ -748,6 +763,9 @@ useEffect(() => {
                 id="agriculture-toggle"
                 checked={showAgricultureLands}
                 onCheckedChange={setShowAgricultureLands}
+                   style={{
+    backgroundColor: showAgricultureLands ? '#ea580c' : '#374151'
+  }}
                 className="data-[state=checked]:bg-orange-600"
               />
             </div>
