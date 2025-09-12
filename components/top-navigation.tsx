@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Shield, Home, Search } from "lucide-react"
+import { Shield, Home, Search, Book } from "lucide-react"
 import Image from "next/image"
 
 interface TopNavigationProps {
@@ -65,7 +65,7 @@ export function TopNavigation({ title = "Agricultural Data Portal", subtitle }: 
         </div>
       </div>
 
-      {/* Right Section - Home Icon, Date & Time */}
+      {/* Right Section - Home Icon, User Manual, Date & Time */}
       <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
         <Button
           variant="ghost"
@@ -75,6 +75,16 @@ export function TopNavigation({ title = "Agricultural Data Portal", subtitle }: 
         >
           <Home className="h-4 w-4" />
         </Button>
+
+        <a
+          href="/User Manual.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="h-8 w-8 flex items-center justify-center hover:bg-accent hover:text-accent-foreground rounded-sm"
+          title="User Manual"
+        >
+          <Book className="h-4 w-4" />
+        </a>
 
         <div className="hidden xl:flex flex-col items-center justify-center text-xs font-medium text-foreground/70">
           <div>{dateStr}</div>
